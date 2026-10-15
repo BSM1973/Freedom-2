@@ -73,6 +73,21 @@ jobs:
           test -f "$SOURCE_ROOT/plugin/CMakeLists.txt"
           test -f "$SOURCE_ROOT/native/CMakeLists.txt"
           test -f "$SOURCE_ROOT/plugin/Source/PluginProcessor.cpp"
+      - name: Validate original HTML audio engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$SOURCE_ROOT/tests/audio_validation.cjs"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          page=Path(os.environ["SOURCE_ROOT"])/"plugin/WebUI/index.html"
+          data=page.read_bytes()
+          assert data.lstrip().lower().startswith(b"<!doctype html"), "Embedded UI must be decoded HTML, not percent-encoded text"
+          assert b"freedom-v70-worklet-source" in data, "Original audio worklet must be retained"
+          assert b"WEB MIDI NON DISPONIBLE" in data, "Original UI unexpectedly modified"
+          print("Original HTML and audio worklet retained; no UI changes")
+          PY
       - name: Fetch JUCE
         shell: bash
         run: |
