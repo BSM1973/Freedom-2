@@ -30,6 +30,9 @@ jobs:
             echo "::error::Missing sources. Upload Freedom_2_UI_v8.8.zip to repository root, or commit plugin/ and native/."
             exit 1
           fi
+      - name: Embed original Freedom 2 UI
+        shell: bash
+        run: python3 scripts/prepare_original_ui.py "$SOURCE_ROOT"
       - name: Verify source tree
         shell: bash
         run: |
