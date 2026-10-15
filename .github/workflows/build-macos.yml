@@ -181,7 +181,28 @@ jobs:
             state.Osc_3_Volume=0.6;
             tick(); await sleep();
             assert.equal(host[14],0.6,'UI must regain control after automation');
-            console.log('Oscillator bridge mock: initialization, UI->native, host->UI, conflict priority passed');
+            // Reopening the editor must restore values from the existing processor.
+            const reopened = {...state};
+            reopened.Osc_1_Volume=0;
+            reopened.Osc_2_Volume=0;
+            reopened.Osc_3_Volume=0;
+            const freshWindow = {
+              __JUCE__: window.__JUCE__,
+              LibertyFreedomUI: {
+                getParameters: () => ({...reopened}),
+                setParameter: (key,value) => {reopened[key]=value;}
+              }
+            };
+            let reopenTick;
+            vm.runInNewContext(code,{
+              window:freshWindow,
+              setInterval: callback => {reopenTick=callback;}
+            });
+            reopenTick(); await sleep();
+            assert.equal(reopened.Osc_1_Volume,host[2],'reopen must restore OSC1');
+            assert.equal(reopened.Osc_2_Volume,host[8],'reopen must restore OSC2');
+            assert.equal(reopened.Osc_3_Volume,host[14],'reopen must restore OSC3');
+            console.log('Oscillator bridge mock: initialization, UI edits, automation, conflict, editor reopen passed');
           })().catch(error => {console.error(error);process.exitCode=1;});
           JS
       - name: Fetch JUCE
