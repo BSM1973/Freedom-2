@@ -354,6 +354,28 @@ jobs:
           print("Native header candidate:",dsp_h.relative_to(root),"exists:",dsp_h.exists())
           print("NOTE: UI filter ADSR controls are not yet proven to modulate audio")
           PY
+      - name: Inspect DSP voice and filter insertion points
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          root=Path(os.environ["SOURCE_ROOT"])
+          for relative in ("native/include/FreedomDSP.h","native/src/FreedomDSP.cpp",
+                           "plugin/Source/PluginProcessor.cpp"):
+              file=root/relative
+              lines=file.read_text(errors="replace").splitlines()
+              print("=== "+relative+" ===")
+              for i,line in enumerate(lines):
+                  if any(token in line for token in ("struct Voice","struct Params","struct Parameters",
+                      "noteOn(","noteOff(","processBlock(","processSample(","cutoffHz",
+                      "filterMode","filterState","filterEnv","envelope")):
+                      lo=max(0,i-2);hi=min(len(lines),i+3)
+                      for j in range(lo,hi):
+                          print(f"{j+1}: {lines[j][:280]}")
+                      print("---")
+          PY
       - name: Verify original filter mode mapping
         shell: bash
         run: |
