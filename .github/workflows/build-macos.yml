@@ -986,6 +986,25 @@ jobs:
       - name: Build AU VST3 Standalone
         shell: bash
         run: cmake --build "$RUNNER_TEMP/freedom-build" --config Release --parallel 3
+      - name: Verify compiled AU VST3 filter ADSR parameter identifiers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for extension in component vst3; do
+            bundle=$(find "$RUNNER_TEMP/freedom-build" -type d -name "Freedom 2.$extension" -print -quit)
+            test -n "$bundle"
+            executable=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$bundle/Contents/Info.plist")
+            binary="$bundle/Contents/MacOS/$executable"
+            test -f "$binary"
+            strings "$binary" > "$RUNNER_TEMP/freedom-$extension-strings.txt"
+            for parameter in filterEnvAttack filterEnvDecay filterEnvSustain filterEnvRelease filterEnvAmount; do
+              if ! grep -Fq "$parameter" "$RUNNER_TEMP/freedom-$extension-strings.txt"; then
+                echo "::error::Missing $parameter in compiled $extension plugin"
+                exit 1
+              fi
+            done
+            echo "$extension: five native filter ADSR parameter identifiers present in compiled binary"
+          done
       - name: Collect plugin bundles
         shell: bash
         run: |
