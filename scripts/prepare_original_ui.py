@@ -36,23 +36,46 @@ print("Oscillator HTML controls and native parameter family identified (bridge p
 bridge = """
 <script id="liberty-native-oscillators-bridge">
 (() => {
-  const last = new Map();
-  setInterval(() => {
-    const fn = window.__JUCE__?.backend?.getNativeFunction?.('freedomSetOscillator');
-    const state = window.LibertyFreedomUI?.getParameters?.();
-    if (!fn || !state) return;
-    const fields = ['On','Wave','Volume','Octave','Semitone','Fine'];
-    for (let osc = 1; osc <= 3; osc++) {
-      const values = fields.map(k => Number(state['Osc_' + osc + '_' + k]));
-      if (!values.every(Number.isFinite)) continue;
-      const current = JSON.stringify(values);
-      if (current === last.get(osc)) continue;
-      last.set(osc, current);
-      fields.forEach((key,i) => {
-        Promise.resolve(fn(osc, key, values[i])).catch(() => last.delete(osc));
-      });
-    }
-  }, 120);
+  const fields = ['On','Wave','Volume','Octave','Semitone','Fine'];
+  let lastUI = new Map();
+  let initialized = false;
+  let busy = false;
+  async function sync() {
+    if (busy) return;
+    const backend = window.__JUCE__?.backend;
+    const ui = window.LibertyFreedomUI;
+    const get = backend?.getNativeFunction?.('freedomGetOscillators');
+    const set = backend?.getNativeFunction?.('freedomSetOscillator');
+    if (!get || !set || !ui?.getParameters || !ui?.setParameter) return;
+    busy = true;
+    try {
+      const native = await get();
+      if (!Array.isArray(native) || native.length !== 18) return;
+      const state = ui.getParameters();
+      for (let osc = 1; osc <= 3; osc++) {
+        for (let i = 0; i < fields.length; i++) {
+          const key = 'Osc_' + osc + '_' + fields[i];
+          const current = Number(state[key]);
+          const host = Number(native[(osc-1)*fields.length+i]);
+          if (!Number.isFinite(current) || !Number.isFinite(host)) continue;
+          const previous = lastUI.get(key);
+          // At startup and after host automation, native state is authoritative.
+          if (!initialized || (previous !== undefined && Math.abs(current-previous)<0.00001
+              && Math.abs(current-host)>0.00001)) {
+            if (Math.abs(current-host)>0.00001) ui.setParameter(key,host);
+            lastUI.set(key,host);
+          } else if (Math.abs(current-host)>0.00001) {
+            const ok = await set(osc,fields[i],current);
+            if (ok) lastUI.set(key,current);
+          } else lastUI.set(key,current);
+        }
+      }
+      initialized = true;
+    } catch (_) {
+      // Keep the original UI usable if a host does not expose native functions.
+    } finally { busy = false; }
+  }
+  setInterval(sync, 150);
 })();
 </script>
 """
@@ -94,6 +117,21 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
   : juce::AudioProcessorEditor(&p), processor(p),
     browser(juce::WebBrowserComponent::Options()
       .withNativeIntegrationEnabled()
+      .withNativeFunction("freedomGetOscillators",
+        [&p](const juce::Array<juce::var>&,
+             juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+          juce::Array<juce::var> values;
+          const juce::StringArray fields{"On","Wave","Level","Octave","Semitone","Fine"};
+          for (int osc = 1; osc <= 3; ++osc) {
+            for (const auto& field : fields) {
+              const auto id = "osc" + juce::String(osc) + field;
+              auto* param = p.getValueTreeState().getParameter(id);
+              values.add(param != nullptr ? juce::var(param->convertFrom0to1(param->getValue()))
+                                          : juce::var());
+            }
+          }
+          complete(juce::var(values));
+        })
       .withNativeFunction("freedomSetOscillator",
         [&p](const juce::Array<juce::var>& args,
              juce::WebBrowserComponent::NativeFunctionCompletion complete) {
