@@ -549,6 +549,38 @@ jobs:
             assert(positiveDifference>0.01);
             assert(negativeDifference>0.01);
             assert(releaseDifference>0.01);
+            // Sustain pedal must postpone filter envelope release until pedal-up.
+            auto pedalRender=[](bool holdPedal){
+              FreedomDSP dsp(48000.0);
+              FreedomDSP::Parameters p{};
+              p.cutoffHz=500.0f;
+              p.filterMode=FreedomDSP::FilterMode::LP24;
+              p.filterEnvAttack=0.005f;
+              p.filterEnvDecay=0.1f;
+              p.filterEnvSustain=0.8f;
+              p.filterEnvRelease=0.08f;
+              p.filterEnvAmount=3.0f;
+              p.releaseSeconds=0.35f;
+              dsp.setParameters(p);
+              dsp.noteOn(0,60,110);
+              std::vector<float> left(16384),right(16384);
+              dsp.process(left.data(),right.data(),4096);
+              if(holdPedal)dsp.sustain(0,true);
+              dsp.noteOff(0,60);
+              dsp.process(left.data()+4096,right.data()+4096,4096);
+              if(holdPedal)dsp.sustain(0,false);
+              dsp.process(left.data()+8192,right.data()+8192,8192);
+              for(float sample:left)assert(std::isfinite(sample));
+              return left;
+            };
+            const auto held=pedalRender(true);
+            const auto immediate=pedalRender(false);
+            double pedalDifference=0;
+            for(std::size_t i=4096;i<8192;i++)
+              pedalDifference+=std::abs(held[i]-immediate[i]);
+            std::cout<<"Sustain pedal held-vs-released audio difference="
+                     <<pedalDifference<<"\n";
+            assert(pedalDifference>0.01);
             std::cout<<"Native filter ADSR audio tests passed\n";
           }
           CPP
