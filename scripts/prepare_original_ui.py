@@ -126,6 +126,46 @@ bridge = """
     } finally {filterBusy=false;}
   }
   setInterval(syncFilter,150);
+  // Dedicated filter ADSR bridge; original controls and CSS remain untouched.
+  const envKeys = [
+    ['Filter_Envelope_Attack','filterEnvAttack'],
+    ['Filter_Envelope_Decay','filterEnvDecay'],
+    ['Filter_Envelope_Sustain','filterEnvSustain'],
+    ['Filter_Envelope_Release','filterEnvRelease'],
+    ['Filter_Envelope_Amount','filterEnvAmount']
+  ];
+  const envUI = new Map(), envHost = new Map();
+  let envReady=false, envBusy=false;
+  async function syncFilterEnvelope() {
+    if(envBusy)return;
+    const ui=window.LibertyFreedomUI;
+    const backend=window.__JUCE__?.backend;
+    const get=backend?.getNativeFunction?.('freedomGetFilterEnvelope');
+    const set=backend?.getNativeFunction?.('freedomSetFilterEnvelope');
+    if(!get||!set||!ui?.getParameters||!ui?.setParameter)return;
+    envBusy=true;
+    try {
+      const values=await get();
+      if(!Array.isArray(values)||values.length!==envKeys.length)return;
+      const state=ui.getParameters();
+      for(let i=0;i<envKeys.length;i++){
+        const [key,id]=envKeys[i];
+        const current=Number(state[key]),host=Number(values[i]);
+        if(!Number.isFinite(current)||!Number.isFinite(host))continue;
+        const uiChanged=envUI.has(key)&&Math.abs(current-envUI.get(key))>0.00001;
+        const hostChanged=envHost.has(key)&&Math.abs(host-envHost.get(key))>0.00001;
+        if(!envReady||hostChanged||!uiChanged){
+          if(Math.abs(current-host)>0.00001)ui.setParameter(key,host);
+          envUI.set(key,host);envHost.set(key,host);
+        }else if(Math.abs(current-host)>0.00001){
+          if(await set(id,current)){envUI.set(key,current);envHost.set(key,current);}
+        }else{envUI.set(key,current);envHost.set(key,host);}
+      }
+      envReady=true;
+    }catch(_){/* Native bridge optional in browser preview. */}
+    finally{envBusy=false;}
+  }
+  setInterval(syncFilterEnvelope,150);
 })();
 </script>
 """
@@ -193,6 +233,34 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
               : juce::var());
           }
           complete(juce::var(values));
+        })
+      .withNativeFunction("freedomGetFilterEnvelope",
+        [&p](const juce::Array<juce::var>&,
+             juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+          juce::Array<juce::var> values;
+          for (const auto& id : juce::StringArray{"filterEnvAttack","filterEnvDecay",
+              "filterEnvSustain","filterEnvRelease","filterEnvAmount"}) {
+            auto* parameter=p.getValueTreeState().getParameter(id);
+            values.add(parameter != nullptr
+              ? juce::var(parameter->convertFrom0to1(parameter->getValue()))
+              : juce::var());
+          }
+          complete(juce::var(values));
+        })
+      .withNativeFunction("freedomSetFilterEnvelope",
+        [&p](const juce::Array<juce::var>& args,
+             juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+          if(args.size()!=2 || !args[0].isString()){complete(false);return;}
+          const auto id=args[0].toString();
+          if(id!="filterEnvAttack" && id!="filterEnvDecay" &&
+             id!="filterEnvSustain" && id!="filterEnvRelease" &&
+             id!="filterEnvAmount"){complete(false);return;}
+          auto* parameter=p.getValueTreeState().getParameter(id);
+          if(parameter==nullptr){complete(false);return;}
+          const float value=static_cast<float>(static_cast<double>(args[1]));
+          if(!std::isfinite(value)){complete(false);return;}
+          parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+          complete(true);
         })
       .withNativeFunction("freedomSetFilter",
         [&p](const juce::Array<juce::var>& args,
