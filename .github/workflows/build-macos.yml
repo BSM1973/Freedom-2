@@ -1036,6 +1036,14 @@ jobs:
             test -f "$bundle/Contents/MacOS/$executable"
             file "$bundle/Contents/MacOS/$executable" | grep -q 'arm64'
           done
+          # Both distribution formats must expose a stable, non-empty bundle ID.
+          au_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' 'dist/Freedom 2.component/Contents/Info.plist')
+          vst_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' 'dist/Freedom 2.vst3/Contents/Info.plist')
+          test -n "$au_id"
+          test -n "$vst_id"
+          test "$au_id" != "$vst_id"
+          echo "AU bundle ID: $au_id"
+          echo "VST3 bundle ID: $vst_id"
           # JUCE must advertise this plugin as an instrument accepting host MIDI.
           grep -Eq 'IS_SYNTH[[:space:]]+TRUE' "$SOURCE_ROOT/plugin/CMakeLists.txt"
           grep -Eq 'NEEDS_MIDI_INPUT[[:space:]]+TRUE' "$SOURCE_ROOT/plugin/CMakeLists.txt"
