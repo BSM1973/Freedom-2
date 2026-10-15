@@ -617,6 +617,33 @@ jobs:
               }
             }
             std::cout<<"Filter ADSR finite at 44.1/48/96 kHz and bipolar modulation extremes\\n";
+            // Rapid preset changes during playback must never produce NaNs or infinities.
+            FreedomDSP switching(48000.0);
+            FreedomDSP::Parameters switchParams{};
+            switchParams.cutoffHz=600.0f;
+            switchParams.resonance=0.3f;
+            switchParams.filterMode=FreedomDSP::FilterMode::LP24;
+            switchParams.filterEnvAttack=0.005f;
+            switchParams.filterEnvDecay=0.15f;
+            switchParams.filterEnvSustain=0.4f;
+            switchParams.filterEnvRelease=0.12f;
+            switching.setParameters(switchParams);
+            switching.noteOn(0,60,100);
+            std::vector<float> switchL(256),switchR(256);
+            double switchEnergy=0;
+            for(int block=0;block<120;block++){
+              switchParams.filterEnvAmount=(block%2==0)?4.5f:-4.5f;
+              switchParams.filterEnvAttack=(block%3==0)?0.001f:2.0f;
+              switchParams.filterEnvRelease=(block%3==1)?0.001f:3.0f;
+              switchParams.cutoffHz=(block%2==0)?250.0f:6500.0f;
+              switching.setParameters(switchParams);
+              if(block==60)switching.noteOff(0,60);
+              switching.process(switchL.data(),switchR.data(),256);
+              for(float sample:switchL){assert(std::isfinite(sample));switchEnergy+=std::abs(sample);}
+              for(float sample:switchR)assert(std::isfinite(sample));
+            }
+            assert(switchEnergy>0.01);
+            std::cout<<"Rapid filter ADSR preset switching: 120 finite audio blocks\\n";
             // Sustain pedal must postpone filter envelope release until pedal-up.
             auto pedalRender=[](bool holdPedal){
               FreedomDSP dsp(48000.0);
