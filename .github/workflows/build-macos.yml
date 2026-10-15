@@ -1055,6 +1055,11 @@ jobs:
           grep -Eq 'NEEDS_MIDI_INPUT[[:space:]]+TRUE' "$SOURCE_ROOT/plugin/CMakeLists.txt"
           echo "AU/VST3 signatures, ARM64 binaries and native MIDI flags validated"
           ditto -c -k --sequesterRsrc --keepParent dist Freedom-2-macOS-ARM64.zip
+          # Verify the published ZIP can be read and contains both plugin formats.
+          unzip -tq Freedom-2-macOS-ARM64.zip
+          unzip -Z1 Freedom-2-macOS-ARM64.zip | grep -Fq 'Freedom 2.component/Contents/Info.plist'
+          unzip -Z1 Freedom-2-macOS-ARM64.zip | grep -Fq 'Freedom 2.vst3/Contents/Info.plist'
+          echo "Distribution ZIP integrity and AU/VST3 contents verified"
       - uses: actions/upload-artifact@v4
         with:
           name: Freedom-2-macOS-ARM64
