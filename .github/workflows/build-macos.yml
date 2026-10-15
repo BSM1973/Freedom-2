@@ -1044,6 +1044,12 @@ jobs:
           # JUCE may use the same CFBundleIdentifier for AU and VST3; both must be present.
           echo "AU bundle ID: $au_id"
           echo "VST3 bundle ID: $vst_id"
+          # Both installed formats must report the same product version.
+          au_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' 'dist/Freedom 2.component/Contents/Info.plist')
+          vst_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' 'dist/Freedom 2.vst3/Contents/Info.plist')
+          test -n "$au_version"
+          test "$au_version" = "$vst_version"
+          echo "AU/VST3 shared version: $au_version"
           # JUCE must advertise this plugin as an instrument accepting host MIDI.
           grep -Eq 'IS_SYNTH[[:space:]]+TRUE' "$SOURCE_ROOT/plugin/CMakeLists.txt"
           grep -Eq 'NEEDS_MIDI_INPUT[[:space:]]+TRUE' "$SOURCE_ROOT/plugin/CMakeLists.txt"
