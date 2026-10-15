@@ -561,6 +561,36 @@ jobs:
             assert(positiveDifference>0.01);
             assert(negativeDifference>0.01);
             assert(releaseDifference>0.01);
+            // Restored ADSR values must affect rendered sound, not just XML state.
+            auto renderRestored=[](float amount){
+              FreedomDSP dsp(48000.0);
+              FreedomDSP::Parameters p{};
+              p.cutoffHz=450.0f;
+              p.resonance=0.15f;
+              p.filterMode=FreedomDSP::FilterMode::LP24;
+              p.filterEnvAttack=0.008f;
+              p.filterEnvDecay=0.12f;
+              p.filterEnvSustain=0.2f;
+              p.filterEnvRelease=0.15f;
+              p.filterEnvAmount=amount;
+              dsp.setParameters(p);
+              dsp.noteOn(0,60,110);
+              std::vector<float> left(4096),right(4096);
+              dsp.process(left.data(),right.data(),static_cast<int>(left.size()));
+              for(float sample:left)assert(std::isfinite(sample));
+              return left;
+            };
+            const auto restoredA=renderRestored(-1.75f);
+            const auto restoredB=renderRestored(4.25f);
+            const auto restoredAAgain=renderRestored(-1.75f);
+            double restoredDifference=0,restoreRepeatDifference=0;
+            for(std::size_t i=0;i<restoredA.size();i++){
+              restoredDifference+=std::abs(restoredA[i]-restoredB[i]);
+              restoreRepeatDifference+=std::abs(restoredA[i]-restoredAAgain[i]);
+            }
+            assert(restoredDifference>0.01);
+            assert(restoreRepeatDifference<0.0001);
+            std::cout<<"Restored filter ADSR settings produce distinct, repeatable native audio\\n";
             // Sustain pedal must postpone filter envelope release until pedal-up.
             auto pedalRender=[](bool holdPedal){
               FreedomDSP dsp(48000.0);
