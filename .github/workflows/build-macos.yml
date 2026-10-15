@@ -744,7 +744,7 @@ jobs:
           export JUCE_DIR="$RUNNER_TEMP/JUCE"
           cat > "$RUNNER_TEMP/juce-state-test/CMakeLists.txt" <<'CMAKE'
           cmake_minimum_required(VERSION 3.22)
-          project(FreedomStateRoundtrip LANGUAGES CXX)
+          project(FreedomStateRoundtrip VERSION 1.0.0 LANGUAGES CXX)
           add_subdirectory("$ENV{JUCE_DIR}" juce)
           juce_add_console_app(FreedomStateRoundtrip PRODUCT_NAME "Freedom State Roundtrip")
           target_sources(FreedomStateRoundtrip PRIVATE main.cpp)
