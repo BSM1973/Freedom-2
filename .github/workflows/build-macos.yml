@@ -581,6 +581,46 @@ jobs:
             std::cout<<"Sustain pedal held-vs-released audio difference="
                      <<pedalDifference<<"\n";
             assert(pedalDifference>0.01);
+            // Polyphony: chords, overlapping keys, staggered releases and voice stealing.
+            FreedomDSP poly(48000.0);
+            FreedomDSP::Parameters polyParams{};
+            polyParams.filterEnvAttack=0.003f;
+            polyParams.filterEnvDecay=0.07f;
+            polyParams.filterEnvSustain=0.4f;
+            polyParams.filterEnvRelease=0.12f;
+            polyParams.filterEnvAmount=2.5f;
+            polyParams.cutoffHz=650.0f;
+            polyParams.releaseSeconds=0.18f;
+            poly.setParameters(polyParams);
+            std::vector<float> polyL(512),polyR(512);
+            auto renderPoly=[&](){
+              poly.process(polyL.data(),polyR.data(),polyL.size());
+              double energy=0;
+              for(std::size_t i=0;i<polyL.size();i++){
+                assert(std::isfinite(polyL[i]) && std::isfinite(polyR[i]));
+                energy+=std::abs(polyL[i]);
+              }
+              return energy;
+            };
+            for(int note:{48,52,55,60})poly.noteOn(0,note,100);
+            const double chordEnergy=renderPoly();
+            assert(chordEnergy>0.001);
+            poly.noteOn(0,60,115); // repeated key overlaps its existing voice
+            assert(renderPoly()>0.001);
+            poly.noteOff(0,60); // release only the newest matching note
+            assert(renderPoly()>0.001);
+            for(int note:{48,52,55,60})poly.noteOff(0,note);
+            renderPoly();
+            // Exceed the 16-voice limit to exercise voice stealing under ADSR.
+            for(int note=36;note<64;note++){
+              poly.noteOn(0,note,90);
+              renderPoly();
+            }
+            assert(poly.activeVoices()<=FreedomDSP::MaxVoices);
+            for(int note=36;note<64;note++)poly.noteOff(0,note);
+            for(int i=0;i<100;i++)renderPoly();
+            std::cout<<"Polyphonic filter ADSR: chord energy="<<chordEnergy
+                     <<", active voices after release="<<poly.activeVoices()<<"\n";
             std::cout<<"Native filter ADSR audio tests passed\n";
           }
           CPP
