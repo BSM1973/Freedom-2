@@ -45,9 +45,22 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
   : juce::AudioProcessorEditor(&p), processor(p) {
  addAndMakeVisible(browser);
  setSize(1400, 920);
- const auto html = juce::String::fromUTF8(BinaryData::index_html,
-                                           BinaryData::index_htmlSize);
- browser.goToURL("data:text/html;charset=utf-8," + juce::URL::addEscapeChars(html, true));
+ // A giant percent-encoded data: URL is not reliable in embedded WebKit.
+ // Load the original HTML as a real local document instead.
+ const auto folder = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                       .getChildFile("Liberty-Freedom2-WebUI");
+ if (!folder.createDirectory().wasOk()) {
+   jassertfalse;
+   return;
+ }
+ const auto page = folder.getChildFile("index.html");
+ const juce::MemoryBlock bytes(BinaryData::index_html,
+                               static_cast<size_t>(BinaryData::index_htmlSize));
+ if (!page.replaceWithData(bytes.getData(), bytes.getSize())) {
+   jassertfalse;
+   return;
+ }
+ browser.goToURL(juce::URL(page).toString(true));
 }
 void Freedom2Editor::resized() { browser.setBounds(getLocalBounds()); }
 """)
