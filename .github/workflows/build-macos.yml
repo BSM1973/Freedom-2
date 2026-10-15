@@ -300,6 +300,38 @@ jobs:
           for n,line in native_lines: print(f"{n}: {line[:300]}")
           print(f"Filter audit: {len(ui_keys)} UI keys, {len(native_lines)} native references")
           PY
+      - name: Audit filter envelope DSP contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          root=Path(os.environ["SOURCE_ROOT"])
+          html=(root/"index.html").read_text(errors="replace")
+          processor=(root/"plugin/Source/PluginProcessor.cpp").read_text(errors="replace")
+          dsp_files=list((root/"native").rglob("*.h"))+list((root/"native").rglob("*.cpp"))
+          ui_fields=("Attack","Decay","Sustain","Release","Amount")
+          print("=== ORIGINAL FILTER ENVELOPE DEFAULTS ===")
+          for field in ui_fields:
+              key="Filter_Envelope_"+field
+              matches=re.findall(re.escape('"'+key+'"')+r'\s*:\s*(-?[0-9.]+)',html)
+              if field=="Amount":
+                  matches+=re.findall(r'"Filter_Envelope_Amount"\s*:\s*(-?[0-9.]+)',html)
+              assert matches,f"Original UI field missing: {key}"
+              values=[float(v) for v in matches]
+              print(key,"count=",len(values),"min=",min(values),"max=",max(values))
+          print("=== NATIVE FILTER ENVELOPE REFERENCES ===")
+          refs=0
+          for file in [root/"plugin/Source/PluginProcessor.cpp",*dsp_files]:
+              if not file.exists():continue
+              for n,line in enumerate(file.read_text(errors="replace").splitlines(),1):
+                  if re.search(r'filter.*(envelope|attack|decay|sustain|release)|(?:envelope|attack|decay|sustain|release).*filter',line,re.I):
+                      print(f"{file.relative_to(root)}:{n}: {line.strip()[:250]}")
+                      refs+=1
+          print("Native filter envelope references:",refs)
+          print("Audit only: no new DSP parameters or behavior")
+          PY
       - name: Verify original filter mode mapping
         shell: bash
         run: |
