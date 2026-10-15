@@ -1081,6 +1081,8 @@ jobs:
             lipo "$binary" -verify_arch arm64
             original_binary="dist/Freedom 2.$format/Contents/MacOS/$executable"
             cmp "$original_binary" "$binary"
+            # The delivered bundle must retain a valid macOS code signature.
+            codesign --verify --strict "$bundle"
           done
           echo "Extracted AU and VST3 executables verified"
       - uses: actions/upload-artifact@v4
