@@ -101,6 +101,29 @@ jobs:
           assert b"WEB MIDI NON DISPONIBLE" in data, "Original UI unexpectedly modified"
           print("Original HTML and audio worklet retained; no UI changes")
           PY
+      - name: Validate generated native bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/prepare_original_ui.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          root=Path(os.environ["SOURCE_ROOT"])
+          page=(root/"plugin/WebUI/index.html").read_text()
+          editor=(root/"plugin/Source/PluginEditor.cpp").read_text()
+          header=(root/"plugin/Source/PluginProcessor.h").read_text()
+          assert page.count('id="liberty-native-oscillators-bridge"') == 1
+          match=re.search(r'<script id="liberty-native-oscillators-bridge">([\\s\\S]*?)</script>',page)
+          assert match, "Missing native oscillator bridge script"
+          Path("/tmp/freedom-native-bridge-check.js").write_text(match.group(1))
+          assert 'freedomGetOscillators' in editor and 'freedomSetOscillator' in editor
+          assert '.withNativeIntegrationEnabled()' in editor
+          assert 'getValueTreeState()' in header
+          assert 'setSize(1400, 920)' in editor
+          print("Generated oscillator bridge and native bindings validated")
+          PY
+          node --check /tmp/freedom-native-bridge-check.js
       - name: Fetch JUCE
         shell: bash
         run: |
