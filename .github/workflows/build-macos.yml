@@ -1083,6 +1083,8 @@ jobs:
             cmp "$original_binary" "$binary"
             # The delivered bundle must retain a valid macOS code signature.
             codesign --verify --strict "$bundle"
+            # Confirm the extracted executable is covered by the bundle signature.
+            codesign --verify --strict --verbose=2 "$binary"
           done
           echo "Extracted AU and VST3 executables verified"
       - uses: actions/upload-artifact@v4
