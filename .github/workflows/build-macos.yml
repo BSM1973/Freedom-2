@@ -205,6 +205,72 @@ jobs:
             console.log('Oscillator bridge mock: initialization, UI edits, automation, conflict, editor reopen passed');
           })().catch(error => {console.error(error);process.exitCode=1;});
           JS
+      - name: Exercise filter bridge behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs=require('node:fs'), vm=require('node:vm');
+          const assert=require('node:assert/strict');
+          const code=fs.readFileSync('/tmp/freedom-native-bridge-check.js','utf8');
+          const state={Filter_Cutoff:500,Filter_Resonance:0};
+          const host=[12000,0.2], writes=[];
+          const api={
+            freedomGetFilter:async()=>[...host],
+            freedomSetFilter:async(id,value)=>{
+              const i=['cutoff','resonance'].indexOf(id);
+              if(i<0)return false;
+              writes.push([id,value]);host[i]=value;return true;
+            }
+          };
+          const timers=[];
+          const window={
+            __JUCE__:{backend:{getNativeFunction:name=>api[name]}},
+            LibertyFreedomUI:{
+              getParameters:()=>({...state}),
+              setParameter:(key,value)=>{state[key]=value;}
+            }
+          };
+          vm.runInNewContext(code,{window,setInterval:callback=>timers.push(callback)});
+          assert.equal(timers.length,2,'oscillator and filter timers expected');
+          const tick=timers[1],flush=()=>new Promise(r=>setImmediate(r));
+          (async()=>{
+            tick();await flush();
+            assert.equal(state.Filter_Cutoff,12000,'initial cutoff from processor');
+            assert.equal(state.Filter_Resonance,0.2,'initial resonance from processor');
+            assert.equal(writes.length,0,'initialization must not overwrite host');
+            state.Filter_Cutoff=4500;
+            tick();await flush();
+            assert.equal(host[0],4500,'cutoff UI change reaches processor');
+            host[1]=0.65;
+            tick();await flush();
+            assert.equal(state.Filter_Resonance,0.65,'host resonance automation reaches UI');
+            state.Filter_Cutoff=9000;
+            host[0]=7000;
+            tick();await flush();
+            assert.equal(state.Filter_Cutoff,7000,'host wins simultaneous cutoff edits');
+            assert.equal(host[0],7000,'UI must not overwrite host automation');
+            state.Filter_Cutoff=8000;
+            tick();await flush();
+            assert.equal(host[0],8000,'manual cutoff control resumes');
+            const fresh={Filter_Cutoff:100,Filter_Resonance:0};
+            const callbacks=[];
+            vm.runInNewContext(code,{
+              window:{
+                __JUCE__:window.__JUCE__,
+                LibertyFreedomUI:{
+                  getParameters:()=>({...fresh}),
+                  setParameter:(key,value)=>{fresh[key]=value;}
+                }
+              },
+              setInterval:callback=>callbacks.push(callback)
+            });
+            callbacks[1]();await flush();
+            assert.equal(fresh.Filter_Cutoff,host[0],'reopen restores cutoff');
+            assert.equal(fresh.Filter_Resonance,host[1],'reopen restores resonance');
+            console.log('Filter bridge mock: initialization, UI edits, automation, conflict, reopen passed');
+          })().catch(e=>{console.error(e);process.exitCode=1;});
+          JS
       - name: Audit filter parameter contract
         shell: bash
         run: |
