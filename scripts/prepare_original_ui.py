@@ -34,20 +34,24 @@ print("Oscillator HTML controls and native parameter family identified (bridge p
 # Nonvisual OSC1 bridge. It observes the existing UI state without altering
 # controls, layout, styles, or the original HTML source archive.
 bridge = """
-<script id="liberty-native-osc1-bridge">
+<script id="liberty-native-oscillators-bridge">
 (() => {
-  let last = '';
+  const last = new Map();
   setInterval(() => {
-    const fn = window.__JUCE__?.backend?.getNativeFunction?.('freedomSetOsc1');
+    const fn = window.__JUCE__?.backend?.getNativeFunction?.('freedomSetOscillator');
     const state = window.LibertyFreedomUI?.getParameters?.();
     if (!fn || !state) return;
     const fields = ['On','Wave','Volume','Octave','Semitone','Fine'];
-    const values = fields.map(k => Number(state['Osc_1_' + k]));
-    if (!values.every(Number.isFinite)) return;
-    const current = JSON.stringify(values);
-    if (current === last) return;
-    last = current;
-    fields.forEach((key,i) => { Promise.resolve(fn(key, values[i])).catch(() => {}); });
+    for (let osc = 1; osc <= 3; osc++) {
+      const values = fields.map(k => Number(state['Osc_' + osc + '_' + k]));
+      if (!values.every(Number.isFinite)) continue;
+      const current = JSON.stringify(values);
+      if (current === last.get(osc)) continue;
+      last.set(osc, current);
+      fields.forEach((key,i) => {
+        Promise.resolve(fn(osc, key, values[i])).catch(() => last.delete(osc));
+      });
+    }
   }, 120);
 })();
 </script>
@@ -90,21 +94,23 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
   : juce::AudioProcessorEditor(&p), processor(p),
     browser(juce::WebBrowserComponent::Options()
       .withNativeIntegrationEnabled()
-      .withNativeFunction("freedomSetOsc1",
+      .withNativeFunction("freedomSetOscillator",
         [&p](const juce::Array<juce::var>& args,
              juce::WebBrowserComponent::NativeFunctionCompletion complete) {
-          if (args.size() != 2 || !args[0].isString()) { complete(false); return; }
-          const auto suffix = args[0].toString();
+          if (args.size() != 3 || !args[1].isString()) { complete(false); return; }
+          const int oscillator = static_cast<int>(args[0]);
+          if (oscillator < 1 || oscillator > 3) { complete(false); return; }
+          const auto suffix = args[1].toString();
           if (suffix != "On" && suffix != "Wave" && suffix != "Volume"
               && suffix != "Octave" && suffix != "Semitone" && suffix != "Fine") {
             complete(false);
             return;
           }
-          const auto id = suffix == "Volume" ? juce::String("osc1Level")
-                                               : juce::String("osc1") + suffix;
+          const auto prefix = juce::String("osc") + juce::String(oscillator);
+          const auto id = suffix == "Volume" ? prefix + "Level" : prefix + suffix;
           auto* parameter = p.getValueTreeState().getParameter(id);
           if (parameter == nullptr) { complete(false); return; }
-          const float value = static_cast<float>(static_cast<double>(args[1]));
+          const float value = static_cast<float>(static_cast<double>(args[2]));
           if (!std::isfinite(value)) { complete(false); return; }
           // Host automation receives the physical value converted to the
           // normalized [0,1] range required by JUCE parameters.
@@ -134,4 +140,4 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
 }
 void Freedom2Editor::resized() { browser.setBounds(getLocalBounds()); }
 """)
-print("Original HTML embedded; OSC1 native bridge enabled.")
+print("Original HTML embedded; OSC1-3 native bridge enabled.")
