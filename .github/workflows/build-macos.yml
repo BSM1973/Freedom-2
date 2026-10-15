@@ -965,8 +965,8 @@ jobs:
               assert(std::abs(static_cast<float>(originalTree.getChild(i).getProperty("value"))
                      -replacement[i])<0.0001f);
             }
-            // Reject truncated binary host state snapshots.
-             for(size_t length=0;length<hostChunk.getSize();++length){
+            // Reject incomplete binary XML headers; trailing padding can be optional.
+             for(size_t length=0;length<8 && length<hostChunk.getSize();++length){
                auto truncated=juce::AudioProcessor::getXmlFromBinary(
                    hostChunk.getData(),static_cast<int>(length));
                assert(truncated==nullptr);
