@@ -1,4 +1,4 @@
-name: Freedom 2 — AU & VST3 (Apple Silicon)
+name: Freedom 2 - macOS AU VST3 Apple Silicon
 on:
   workflow_dispatch:
 permissions:
@@ -7,42 +7,59 @@ concurrency:
   group: freedom2-macos
   cancel-in-progress: true
 jobs:
-  macos-arm64:
+  build:
     runs-on: macos-15
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      - name: Verify sources
+      - name: Prepare source tree
         shell: bash
         run: |
-          test -f plugin/CMakeLists.txt || { echo "::error::Missing plugin/CMakeLists.txt. Upload the Freedom 2 native project first."; exit 1; }
-          test -f native/CMakeLists.txt || { echo "::error::Missing native/CMakeLists.txt."; exit 1; }
-      - name: Install CMake and JUCE
+          set -euo pipefail
+          if [ -f Freedom_2_UI_v8.8.zip ]; then
+            unzip -q Freedom_2_UI_v8.8.zip -d "$RUNNER_TEMP/freedom-src"
+            echo "SOURCE_ROOT=$RUNNER_TEMP/freedom-src/freedom2_v88" >> "$GITHUB_ENV"
+          elif [ -f plugin/CMakeLists.txt ] && [ -f native/CMakeLists.txt ]; then
+            echo "SOURCE_ROOT=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          else
+            echo "::error::Missing sources. Upload Freedom_2_UI_v8.8.zip to repository root, or commit plugin/ and native/."
+            exit 1
+          fi
+      - name: Verify source tree
         shell: bash
         run: |
-          brew install cmake
+          test -f "$SOURCE_ROOT/plugin/CMakeLists.txt"
+          test -f "$SOURCE_ROOT/native/CMakeLists.txt"
+          test -f "$SOURCE_ROOT/plugin/Source/PluginProcessor.cpp"
+      - name: Fetch JUCE
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --version
+          xcodebuild -version
           git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git "$RUNNER_TEMP/JUCE"
       - name: Configure ARM64
         shell: bash
         run: |
-          cmake -S plugin -B build -G Xcode \
+          cmake -S "$SOURCE_ROOT/plugin" -B "$RUNNER_TEMP/freedom-build" -G Xcode \
             -DJUCE_DIR="$RUNNER_TEMP/JUCE" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
             -DBUILD_TESTING=OFF
-      - name: Build AU VST3 and Standalone
+      - name: Build AU VST3 Standalone
         shell: bash
-        run: cmake --build build --config Release --parallel 3
-      - name: Package binaries
+        run: cmake --build "$RUNNER_TEMP/freedom-build" --config Release --parallel 3
+      - name: Collect plugin bundles
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p dist
-          find build -type d \( -name 'Freedom 2.component' -o -name 'Freedom 2.vst3' -o -name 'Freedom 2.app' \) -prune -print | while IFS= read -r item; do
+          find "$RUNNER_TEMP/freedom-build" -type d \( -name 'Freedom 2.component' -o -name 'Freedom 2.vst3' -o -name 'Freedom 2.app' \) -prune -print | while IFS= read -r item; do
             cp -R "$item" dist/
           done
           ls -lah dist
-          test -d "dist/Freedom 2.component" || { echo "::error::AU not found"; exit 1; }
-          test -d "dist/Freedom 2.vst3" || { echo "::error::VST3 not found"; exit 1; }
+          test -d "dist/Freedom 2.component"
+          test -d "dist/Freedom 2.vst3"
           for item in dist/*; do codesign --force --deep --sign - "$item"; done
           ditto -c -k --sequesterRsrc --keepParent dist Freedom-2-macOS-ARM64.zip
       - uses: actions/upload-artifact@v4
