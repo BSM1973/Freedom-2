@@ -17,6 +17,20 @@ assert all(p.is_file() for p in (cmake,editor_h,editor_cpp,html))
 # regenerating or approximating the design.
 assets=plugin/"WebUI"
 assets.mkdir(exist_ok=True)
+# The UI's LibertyFreedomUI API exposes parameter keys used by the native
+# AudioProcessorValueTreeState. Check the oscillator contract before building.
+source_html=html.read_text()
+native_params=(plugin/"Source/PluginProcessor.cpp").read_text()
+for oscillator in (1,2,3):
+    for suffix in ("On","Wave","Octave","Semitone","Fine","Volume","Pan","Phase","Pulse_Width"):
+        key=f"Osc_{oscillator}_{suffix}"
+        if key not in source_html:
+            raise RuntimeError(f"Original HTML missing oscillator control: {key}")
+if 'getParameters' not in source_html or 'onParameterChange' not in source_html:
+    raise RuntimeError("Original HTML parameter-change API not found")
+if 'Osc_' not in native_params:
+    raise RuntimeError("Native processor has no oscillator parameters")
+print("Oscillator HTML controls and native parameter family identified (bridge pending).")
 (assets/"index.html").write_bytes(html.read_bytes())
 s=cmake.read_text()
 s=s.replace("JUCE_WEB_BROWSER=0", "JUCE_WEB_BROWSER=1")
