@@ -591,6 +591,32 @@ jobs:
             assert(restoredDifference>0.01);
             assert(restoreRepeatDifference<0.0001);
             std::cout<<"Restored filter ADSR settings produce distinct, repeatable native audio\\n";
+            // Host sample-rate changes must remain finite with extreme envelope settings.
+            for(double sampleRate:{44100.0,48000.0,96000.0}){
+              for(float amount:{-4.5f,0.0f,4.5f}){
+                FreedomDSP rateDsp(sampleRate);
+                FreedomDSP::Parameters rateParams{};
+                rateParams.cutoffHz=800.0f;
+                rateParams.resonance=0.6f;
+                rateParams.filterMode=FreedomDSP::FilterMode::LP24;
+                rateParams.filterEnvAttack=0.001f;
+                rateParams.filterEnvDecay=0.001f;
+                rateParams.filterEnvSustain=1.0f;
+                rateParams.filterEnvRelease=0.001f;
+                rateParams.filterEnvAmount=amount;
+                rateDsp.setParameters(rateParams);
+                rateDsp.noteOn(0,72,127);
+                std::vector<float> rateL(2048),rateR(2048);
+                rateDsp.process(rateL.data(),rateR.data(),1024);
+                rateDsp.noteOff(0,72);
+                rateDsp.process(rateL.data()+1024,rateR.data()+1024,1024);
+                double energy=0;
+                for(float sample:rateL){assert(std::isfinite(sample));energy+=std::abs(sample);}
+                for(float sample:rateR)assert(std::isfinite(sample));
+                assert(energy>0.0001);
+              }
+            }
+            std::cout<<"Filter ADSR finite at 44.1/48/96 kHz and bipolar modulation extremes\\n";
             // Sustain pedal must postpone filter envelope release until pedal-up.
             auto pedalRender=[](bool holdPedal){
               FreedomDSP dsp(48000.0);
