@@ -46,6 +46,14 @@ jobs:
               for i,line in enumerate(lines,1):
                   if re.search(r'AudioProcessorValueTreeState|AudioParameter|addParameter|createParameterLayout|ParameterID|processBlock|class Freedom|struct Freedom',line):
                       print(f"{i}: {line[:230]}")
+          print("=== NATIVE OSCILLATOR PARAMETER FACTORY ===")
+          native=(root/"plugin/Source/PluginProcessor.cpp").read_text(errors="replace").splitlines()
+          for n in range(14,min(25,len(native)+1)):
+              print(f"{n}: {native[n-1][:400]}")
+          print("=== ORIGINAL UI PARAMETER CHANGE CONTRACT ===")
+          html_lines=(root/"index.html").read_text(errors="replace").splitlines()
+          for n in range(958,min(980,len(html_lines)+1)):
+              print(f"{n}: {html_lines[n-1][:700]}")
           print("=== MIDI / DSP PATH ===")
           proc=root/"plugin/Source/PluginProcessor.cpp"
           if proc.exists():
