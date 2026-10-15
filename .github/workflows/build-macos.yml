@@ -659,7 +659,7 @@ jobs:
             chordSwitch.noteOn(0,55,105);
             chordSwitch.noteOn(0,60,100);
             std::vector<float> chordL(256),chordR(256);
-            double chordEnergy=0;
+            double switchingChordEnergy=0;
             for(int block=0;block<96;block++){
               if(block==24)chordSwitch.noteOff(0,48);
               if(block==48)chordSwitch.noteOff(0,55);
@@ -668,10 +668,10 @@ jobs:
               chordParams.filterEnvSustain=(block%3==0)?0.0f:0.8f;
               chordSwitch.setParameters(chordParams);
               chordSwitch.process(chordL.data(),chordR.data(),256);
-              for(float sample:chordL){assert(std::isfinite(sample));chordEnergy+=std::abs(sample);}
+              for(float sample:chordL){assert(std::isfinite(sample));switchingChordEnergy+=std::abs(sample);}
               for(float sample:chordR)assert(std::isfinite(sample));
             }
-            assert(chordEnergy>0.01);
+            assert(switchingChordEnergy>0.01);
             std::cout<<"MIDI chord with staggered note-offs and live ADSR changes: 96 finite blocks\\n";
             // Sustain pedal must postpone filter envelope release until pedal-up.
             auto pedalRender=[](bool holdPedal){
