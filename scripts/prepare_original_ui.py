@@ -31,7 +31,31 @@ if 'getParameters' not in source_html or 'onParameterChange' not in source_html:
 if 'id("On")' not in native_params or 'id("Wave")' not in native_params or 'addFloat' not in native_params:
     raise RuntimeError("Native oscillator parameter factory not found")
 print("Oscillator HTML controls and native parameter family identified (bridge pending).")
-(assets/"index.html").write_bytes(html.read_bytes())
+# Nonvisual OSC1 bridge. It observes the existing UI state without altering
+# controls, layout, styles, or the original HTML source archive.
+bridge = """
+<script id="liberty-native-osc1-bridge">
+(() => {
+  let last = '';
+  setInterval(() => {
+    const fn = window.__JUCE__?.backend?.getNativeFunction?.('freedomSetOsc1');
+    const state = window.LibertyFreedomUI?.getParameters?.();
+    if (!fn || !state) return;
+    const fields = ['On','Wave','Volume','Octave','Semitone','Fine'];
+    const values = fields.map(k => Number(state['Osc_1_' + k]));
+    if (!values.every(Number.isFinite)) return;
+    const current = JSON.stringify(values);
+    if (current === last) return;
+    last = current;
+    fields.forEach((key,i) => { Promise.resolve(fn(key, values[i])).catch(() => {}); });
+  }, 120);
+})();
+</script>
+"""
+if "</body>" not in source_html:
+    raise RuntimeError("Original HTML has no body closing tag")
+(assets/"index.html").write_text(source_html.replace("</body>",bridge+"</body>",1))
+
 s=cmake.read_text()
 s=s.replace("JUCE_WEB_BROWSER=0", "JUCE_WEB_BROWSER=1")
 if "juce_add_binary_data(Freedom2WebUI" not in s:
@@ -40,6 +64,12 @@ juce_add_binary_data(Freedom2WebUI SOURCES WebUI/index.html)
 target_link_libraries(Freedom2 PRIVATE Freedom2WebUI)
 """
 cmake.write_text(s)
+processor_h=plugin/"Source/PluginProcessor.h"
+header=processor_h.read_text()
+if "getValueTreeState()" not in header:
+    header=header.replace("public:", "public:\\n  juce::AudioProcessorValueTreeState& getValueTreeState() noexcept { return apvts; }",1)
+    processor_h.write_text(header)
+
 editor_h.write_text("""#pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
@@ -56,7 +86,22 @@ private:
 editor_cpp.write_text("""#include "PluginEditor.h"
 #include <BinaryData.h>
 Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
-  : juce::AudioProcessorEditor(&p), processor(p) {
+  : juce::AudioProcessorEditor(&p), processor(p),
+    browser(juce::WebBrowserComponent::Options()
+      .withNativeIntegrationEnabled()
+      .withNativeFunction("freedomSetOsc1",
+        [&p](const juce::Array<juce::var>& args,
+             juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+          if (args.size() != 2 || !args[0].isString()) { complete(false); return; }
+          const auto suffix = args[0].toString();
+          const auto id = suffix == "Volume" ? "osc1Level" : "osc1" + suffix;
+          auto* parameter = p.getValueTreeState().getParameter(id);
+          if (parameter == nullptr) { complete(false); return; }
+          const float value = static_cast<float>(static_cast<double>(args[1]));
+          if (!std::isfinite(value)) { complete(false); return; }
+          parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+          complete(true);
+        })) {
  addAndMakeVisible(browser);
  setSize(1400, 920);
  // A giant percent-encoded data: URL is not reliable in embedded WebKit.
@@ -80,4 +125,4 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
 }
 void Freedom2Editor::resized() { browser.setBounds(getLocalBounds()); }
 """)
-print("Original HTML embedded; native control bridge still pending.")
+print("Original HTML embedded; OSC1 native bridge enabled.")
