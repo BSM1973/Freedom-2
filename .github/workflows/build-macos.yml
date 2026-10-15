@@ -494,6 +494,69 @@ jobs:
           print("Original preset Filter_Type indices:",sorted(set(indices)))
           print("Filter mode contract inspection completed")
           PY
+      - name: Exercise native filter ADSR audio response
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/filter_adsr_audio_test.cpp" <<'CPP'
+          #include "FreedomDSP.h"
+          #include <algorithm>
+          #include <cassert>
+          #include <cmath>
+          #include <iostream>
+          #include <vector>
+          using liberty::FreedomDSP;
+          static std::vector<float> render(float amount, bool noteOff=false) {
+            FreedomDSP dsp(48000.0);
+            FreedomDSP::Parameters p{};
+            p.cutoffHz=450.0f;
+            p.resonance=0.15f;
+            p.filterMode=FreedomDSP::FilterMode::LP24;
+            p.filterEnvAttack=0.008f;
+            p.filterEnvDecay=0.12f;
+            p.filterEnvSustain=0.2f;
+            p.filterEnvRelease=0.15f;
+            p.filterEnvAmount=amount;
+            p.releaseSeconds=0.4f;
+            dsp.setParameters(p);
+            dsp.noteOn(0,60,110);
+            std::vector<float> left(8192),right(8192);
+            dsp.process(left.data(),right.data(),4096);
+            if(noteOff)dsp.noteOff(0,60);
+            dsp.process(left.data()+4096,right.data()+4096,4096);
+            for(float sample:left)assert(std::isfinite(sample));
+            for(float sample:right)assert(std::isfinite(sample));
+            return left;
+          }
+          int main() {
+            auto zero=render(0.0f);
+            auto boosted=render(3.0f);
+            auto inverted=render(-3.0f);
+            auto released=render(3.0f,true);
+            double positiveDifference=0,negativeDifference=0,releaseDifference=0;
+            double zeroEnergy=0;
+            for(std::size_t i=0;i<zero.size();++i) {
+              zeroEnergy+=std::abs(zero[i]);
+              positiveDifference+=std::abs(zero[i]-boosted[i]);
+              negativeDifference+=std::abs(zero[i]-inverted[i]);
+              if(i>=4096)releaseDifference+=std::abs(boosted[i]-released[i]);
+            }
+            std::cout<<"Filter ADSR audio: baseline energy="<<zeroEnergy
+                     <<", positive amount difference="<<positiveDifference
+                     <<", negative amount difference="<<negativeDifference
+                     <<", note-off difference="<<releaseDifference<<"\n";
+            assert(zeroEnergy>0.01);
+            assert(positiveDifference>0.01);
+            assert(negativeDifference>0.01);
+            assert(releaseDifference>0.01);
+            std::cout<<"Native filter ADSR audio tests passed\n";
+          }
+          CPP
+          clang++ -std=c++17 -O2 -I "$SOURCE_ROOT/native/include" \
+            "$SOURCE_ROOT/native/src/FreedomDSP.cpp" \
+            "$RUNNER_TEMP/filter_adsr_audio_test.cpp" \
+            -o "$RUNNER_TEMP/filter_adsr_audio_test"
+          "$RUNNER_TEMP/filter_adsr_audio_test"
       - name: Fetch JUCE
         shell: bash
         run: |
