@@ -157,7 +157,7 @@ jobs:
               setParameter: (key,value) => {state[key]=value;}
             }
           };
-          vm.runInNewContext(code,{window,setInterval: callback => {tick=callback;}});
+          vm.runInNewContext(code,{window,setInterval: callback => {if (!tick) tick=callback;}});
           assert.equal(typeof tick,'function');
           const sleep = () => new Promise(resolve=>setImmediate(resolve));
           (async () => {
@@ -196,7 +196,7 @@ jobs:
             let reopenTick;
             vm.runInNewContext(code,{
               window:freshWindow,
-              setInterval: callback => {reopenTick=callback;}
+              setInterval: callback => {if (!reopenTick) reopenTick=callback;}
             });
             reopenTick(); await sleep();
             assert.equal(reopened.Osc_1_Volume,host[2],'reopen must restore OSC1');
