@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/build-macos.yml'
       - 'Freedom_2_UI_v8.8.zip'
+      - 'scripts/prepare_original_ui.py'
 permissions:
   contents: read
 concurrency:
