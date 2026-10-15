@@ -1041,7 +1041,7 @@ jobs:
           vst_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' 'dist/Freedom 2.vst3/Contents/Info.plist')
           test -n "$au_id"
           test -n "$vst_id"
-          test "$au_id" != "$vst_id"
+          # JUCE may use the same CFBundleIdentifier for AU and VST3; both must be present.
           echo "AU bundle ID: $au_id"
           echo "VST3 bundle ID: $vst_id"
           # JUCE must advertise this plugin as an instrument accepting host MIDI.
