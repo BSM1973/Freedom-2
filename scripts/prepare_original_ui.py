@@ -88,6 +88,44 @@ bridge = """
     } finally { busy = false; }
   }
   setInterval(sync, 150);
+  // Filter controls: preserve original HTML and synchronize existing
+  // native cutoff/resonance values without introducing visual elements.
+  const filterKeys = [['Filter_Cutoff','cutoff'],['Filter_Resonance','resonance']];
+  let filterReady = false;
+  let filterBusy = false;
+  const filterUI = new Map(), filterHost = new Map();
+  async function syncFilter() {
+    if (filterBusy) return;
+    const ui = window.LibertyFreedomUI;
+    const backend = window.__JUCE__?.backend;
+    const get = backend?.getNativeFunction?.('freedomGetFilter');
+    const set = backend?.getNativeFunction?.('freedomSetFilter');
+    if (!get || !set || !ui?.getParameters || !ui?.setParameter) return;
+    filterBusy = true;
+    try {
+      const native = await get();
+      if (!Array.isArray(native) || native.length !== 2) return;
+      const state = ui.getParameters();
+      for (let i=0;i<filterKeys.length;i++) {
+        const [key,id] = filterKeys[i];
+        const current = Number(state[key]), host = Number(native[i]);
+        if (!Number.isFinite(current) || !Number.isFinite(host)) continue;
+        const uiChanged = filterUI.has(key) && Math.abs(current-filterUI.get(key))>0.00001;
+        const hostChanged = filterHost.has(key) && Math.abs(host-filterHost.get(key))>0.00001;
+        if (!filterReady || hostChanged || !uiChanged) {
+          if (Math.abs(current-host)>0.00001) ui.setParameter(key,host);
+          filterUI.set(key,host);
+          filterHost.set(key,host);
+        } else if (Math.abs(current-host)>0.00001) {
+          if (await set(id,current)) {filterUI.set(key,current);filterHost.set(key,current);}
+        } else {filterUI.set(key,current);filterHost.set(key,host);}
+      }
+      filterReady=true;
+    } catch (_) {
+      // Keep the original UI operational if native integration is unavailable.
+    } finally {filterBusy=false;}
+  }
+  setInterval(syncFilter,150);
 })();
 </script>
 """
@@ -143,6 +181,31 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
             }
           }
           complete(juce::var(values));
+        })
+      .withNativeFunction("freedomGetFilter",
+        [&p](const juce::Array<juce::var>&,
+             juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+          juce::Array<juce::var> values;
+          for (const auto& id : juce::StringArray{"cutoff","resonance"}) {
+            auto* parameter = p.getValueTreeState().getParameter(id);
+            values.add(parameter != nullptr
+              ? juce::var(parameter->convertFrom0to1(parameter->getValue()))
+              : juce::var());
+          }
+          complete(juce::var(values));
+        })
+      .withNativeFunction("freedomSetFilter",
+        [&p](const juce::Array<juce::var>& args,
+             juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+          if (args.size()!=2 || !args[0].isString()) {complete(false);return;}
+          const auto id=args[0].toString();
+          if (id!="cutoff" && id!="resonance") {complete(false);return;}
+          auto* parameter=p.getValueTreeState().getParameter(id);
+          if (parameter==nullptr) {complete(false);return;}
+          const float value=static_cast<float>(static_cast<double>(args[1]));
+          if (!std::isfinite(value)) {complete(false);return;}
+          parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+          complete(true);
         })
       .withNativeFunction("freedomSetOscillator",
         [&p](const juce::Array<juce::var>& args,
