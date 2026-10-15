@@ -213,12 +213,12 @@ jobs:
           const fs=require('node:fs'), vm=require('node:vm');
           const assert=require('node:assert/strict');
           const code=fs.readFileSync('/tmp/freedom-native-bridge-check.js','utf8');
-          const state={Filter_Cutoff:500,Filter_Resonance:0};
-          const host=[12000,0.2], writes=[];
+          const state={Filter_Cutoff:500,Filter_Resonance:0,Filter_Type:0};
+          const host=[12000,0.2,1], writes=[];
           const api={
             freedomGetFilter:async()=>[...host],
             freedomSetFilter:async(id,value)=>{
-              const i=['cutoff','resonance'].indexOf(id);
+              const i=['cutoff','resonance','filterMode'].indexOf(id);
               if(i<0)return false;
               writes.push([id,value]);host[i]=value;return true;
             }
@@ -238,6 +238,7 @@ jobs:
             tick();await flush();
             assert.equal(state.Filter_Cutoff,12000,'initial cutoff from processor');
             assert.equal(state.Filter_Resonance,0.2,'initial resonance from processor');
+            assert.equal(state.Filter_Type,1,'initial filter mode from processor');
             assert.equal(writes.length,0,'initialization must not overwrite host');
             state.Filter_Cutoff=4500;
             tick();await flush();
@@ -253,7 +254,13 @@ jobs:
             state.Filter_Cutoff=8000;
             tick();await flush();
             assert.equal(host[0],8000,'manual cutoff control resumes');
-            const fresh={Filter_Cutoff:100,Filter_Resonance:0};
+            state.Filter_Type=5;
+            tick();await flush();
+            assert.equal(host[2],5,'UI mode selection reaches processor');
+            host[2]=3;
+            tick();await flush();
+            assert.equal(state.Filter_Type,3,'DAW filter mode automation reaches UI');
+            const fresh={Filter_Cutoff:100,Filter_Resonance:0,Filter_Type:0};
             const callbacks=[];
             vm.runInNewContext(code,{
               window:{
@@ -268,6 +275,7 @@ jobs:
             callbacks[1]();await flush();
             assert.equal(fresh.Filter_Cutoff,host[0],'reopen restores cutoff');
             assert.equal(fresh.Filter_Resonance,host[1],'reopen restores resonance');
+            assert.equal(fresh.Filter_Type,host[2],'reopen restores filter mode');
             console.log('Filter bridge mock: initialization, UI edits, automation, conflict, reopen passed');
           })().catch(e=>{console.error(e);process.exitCode=1;});
           JS
