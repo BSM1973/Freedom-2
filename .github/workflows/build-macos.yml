@@ -345,6 +345,18 @@ jobs:
             ui.state.Filter_Envelope_Release=1.2;
             ui.tick();await flush();
             assert.equal(host[3],1.2,'release edit reaches processor');
+            // Factory preset load changes all five UI fields in one transaction.
+            const preset=[0.12,1.6,0.42,2.4,3.5];
+            for(let i=0;i<keys.length;i++)ui.state[keys[i]]=preset[i];
+            const writesBeforePreset=writes.length;
+            ui.tick();await flush();
+            for(let i=0;i<keys.length;i++)
+              assert.equal(host[i],preset[i],'preset update reaches native '+keys[i]);
+            assert.equal(writes.length-writesBeforePreset,5,
+              'preset load must send all five ADSR values exactly once');
+            ui.tick();await flush();
+            assert.equal(writes.length-writesBeforePreset,5,
+              'unchanged preset must not trigger redundant native writes');
             const reopened=makeUI([9,9,9,9,9]);
             reopened.tick();await flush();
             for(let i=0;i<keys.length;i++)
