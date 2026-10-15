@@ -7,6 +7,7 @@ on:
       - '.github/workflows/build-macos.yml'
       - 'Freedom_2_UI_v8.8.zip'
       - 'scripts/prepare_original_ui.py'
+      - 'scripts/add_filter_adsr.py'
 permissions:
   contents: read
 concurrency:
@@ -77,6 +78,9 @@ jobs:
                       print(f"{i}: {line[:260]}")
                       if i > 8000: break
           PY
+      - name: Install native filter ADSR
+        shell: bash
+        run: python3 scripts/add_filter_adsr.py "$SOURCE_ROOT"
       - name: Embed original Freedom 2 UI
         shell: bash
         run: python3 scripts/prepare_original_ui.py "$SOURCE_ROOT"
