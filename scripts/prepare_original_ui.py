@@ -85,6 +85,7 @@ private:
 """)
 editor_cpp.write_text("""#include "PluginEditor.h"
 #include <BinaryData.h>
+#include <cmath>
 Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
   : juce::AudioProcessorEditor(&p), processor(p),
     browser(juce::WebBrowserComponent::Options()
@@ -94,11 +95,19 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
              juce::WebBrowserComponent::NativeFunctionCompletion complete) {
           if (args.size() != 2 || !args[0].isString()) { complete(false); return; }
           const auto suffix = args[0].toString();
-          const auto id = suffix == "Volume" ? "osc1Level" : "osc1" + suffix;
+          if (suffix != "On" && suffix != "Wave" && suffix != "Volume"
+              && suffix != "Octave" && suffix != "Semitone" && suffix != "Fine") {
+            complete(false);
+            return;
+          }
+          const auto id = suffix == "Volume" ? juce::String("osc1Level")
+                                               : juce::String("osc1") + suffix;
           auto* parameter = p.getValueTreeState().getParameter(id);
           if (parameter == nullptr) { complete(false); return; }
           const float value = static_cast<float>(static_cast<double>(args[1]));
           if (!std::isfinite(value)) { complete(false); return; }
+          // Host automation receives the physical value converted to the
+          // normalized [0,1] range required by JUCE parameters.
           parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
           complete(true);
         })) {
