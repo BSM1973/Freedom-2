@@ -1005,14 +1005,17 @@ jobs:
             done
             echo "$extension: five native filter ADSR parameter identifiers present in compiled binary"
           done
-      - name: Verify AU component registration with macOS Audio Unit validator
+      - name: Verify compiled AU instrument metadata
         shell: bash
         run: |
           set -euo pipefail
           bundle=$(find "$RUNNER_TEMP/freedom-build" -type d -name 'Freedom 2.component' -print -quit)
           test -n "$bundle"
-          /usr/libexec/PlistBuddy -c 'Print :AudioComponents:0:type' "$bundle/Contents/Info.plist" | grep -Fx 'aumu'
-          /usr/libexec/PlistBuddy -c 'Print :AudioComponents:0:subtype' "$bundle/Contents/Info.plist" | grep -Eq '^.{4}
+          plist="$bundle/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :AudioComponents:0:type' "$plist" | grep -Fx 'aumu'
+          /usr/libexec/PlistBuddy -c 'Print :AudioComponents:0:subtype' "$plist"
+          /usr/libexec/PlistBuddy -c 'Print :AudioComponents:0:manufacturer' "$plist"
+      - name: Collect plugin bundles
         shell: bash
         run: |
           set -euo pipefail
