@@ -985,6 +985,32 @@ jobs:
             for(int i=4;i<8;i++)lengthBytes[i]=0xff;
             assert(juce::AudioProcessor::getXmlFromBinary(
                 corruptedLength.getData(),static_cast<int>(corruptedLength.getSize()))==nullptr);
+            // Exercise JUCE host chunks with multiple realistic ADSR snapshots.
+            for(int snapshot=0;snapshot<32;snapshot++){
+              juce::ValueTree variation("PARAMETERS");
+              for(int i=0;i<5;i++){
+                const float value=static_cast<float>((snapshot+1)*(i+2))/100.0f;
+                juce::ValueTree param("PARAM");
+                param.setProperty("id",ids[i],nullptr);
+                param.setProperty("value",value,nullptr);
+                variation.addChild(param,-1,nullptr);
+              }
+              auto variationXml=variation.createXml();
+              assert(variationXml!=nullptr);
+              juce::MemoryBlock chunk;
+              juce::AudioProcessor::copyXmlToBinary(*variationXml,chunk);
+              auto parsed=juce::AudioProcessor::getXmlFromBinary(
+                  chunk.getData(),static_cast<int>(chunk.getSize()));
+              assert(parsed!=nullptr);
+              auto tree=juce::ValueTree::fromXml(*parsed);
+              assert(tree.getNumChildren()==5);
+              for(int i=0;i<5;i++){
+                const float expected=static_cast<float>((snapshot+1)*(i+2))/100.0f;
+                assert(tree.getChild(i).getProperty("id").toString()==ids[i]);
+                assert(std::abs(static_cast<float>(tree.getChild(i).getProperty("value"))
+                       -expected)<0.0001f);
+              }
+            }
             std::cout<<"JUCE host binary state roundtrip: 5 filter ADSR values restored; invalid chunk rejected\\n";
           }
           CPP
