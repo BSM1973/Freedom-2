@@ -67,7 +67,7 @@ cmake.write_text(s)
 processor_h=plugin/"Source/PluginProcessor.h"
 header=processor_h.read_text()
 if "getValueTreeState()" not in header:
-    header=header.replace("public:", "public:\\n  juce::AudioProcessorValueTreeState& getValueTreeState() noexcept { return apvts; }",1)
+    header=header.replace("public:", "public:\n  juce::AudioProcessorValueTreeState& getValueTreeState() noexcept { return apvts; }",1)
     processor_h.write_text(header)
 
 editor_h.write_text("""#pragma once
