@@ -661,6 +661,32 @@ jobs:
             "$RUNNER_TEMP/filter_adsr_audio_test.cpp" \
             -o "$RUNNER_TEMP/filter_adsr_audio_test"
           "$RUNNER_TEMP/filter_adsr_audio_test"
+      - name: Verify AU VST3 filter ADSR state persistence contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          root=Path(os.environ["SOURCE_ROOT"])
+          processor=(root/"plugin/Source/PluginProcessor.cpp").read_text()
+          editor=(root/"plugin/Source/PluginEditor.cpp").read_text()
+          html=(root/"plugin/WebUI/index.html").read_text()
+          fields=("Attack","Decay","Sustain","Release","Amount")
+          for field in fields:
+              native="filterEnv"+field
+              ui="Filter_Envelope_"+field
+              assert re.search(r'f\("'+native+r'"\s*,',processor),f"APVTS parameter missing: {native}"
+              assert re.search(r'val\("'+native+r'"\)',processor),f"DSP mapping missing: {native}"
+              assert native in editor,f"Native editor binding missing: {native}"
+              assert ui in html,f"Original UI binding missing: {ui}"
+          assert re.search(r'getStateInformation\s*\([^)]*\)\s*\{[^}]*apvts\.copyState\(\)',processor,re.S), \
+              "Host state save must serialize APVTS"
+          assert re.search(r'setStateInformation\s*\([^)]*\)\s*\{[^}]*apvts\.replaceState\(',processor,re.S), \
+              "Host state load must restore APVTS"
+          print("AU/VST3 state contract: 5 filter ADSR parameters registered, DSP/UI mapped, APVTS host save/restore present")
+          print("Static contract check only; actual DAW preset roundtrip remains to be tested")
+          PY
       - name: Fetch JUCE
         shell: bash
         run: |
