@@ -90,7 +90,7 @@ bridge = """
   setInterval(sync, 150);
   // Filter controls: preserve original HTML and synchronize existing
   // native cutoff/resonance values without introducing visual elements.
-  const filterKeys = [['Filter_Cutoff','cutoff'],['Filter_Resonance','resonance']];
+  const filterKeys = [['Filter_Cutoff','cutoff'],['Filter_Resonance','resonance'],['Filter_Type','filterMode']];
   let filterReady = false;
   let filterBusy = false;
   const filterUI = new Map(), filterHost = new Map();
@@ -104,7 +104,7 @@ bridge = """
     filterBusy = true;
     try {
       const native = await get();
-      if (!Array.isArray(native) || native.length !== 2) return;
+      if (!Array.isArray(native) || native.length !== 3) return;
       const state = ui.getParameters();
       for (let i=0;i<filterKeys.length;i++) {
         const [key,id] = filterKeys[i];
@@ -186,7 +186,7 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
         [&p](const juce::Array<juce::var>&,
              juce::WebBrowserComponent::NativeFunctionCompletion complete) {
           juce::Array<juce::var> values;
-          for (const auto& id : juce::StringArray{"cutoff","resonance"}) {
+          for (const auto& id : juce::StringArray{"cutoff","resonance","filterMode"}) {
             auto* parameter = p.getValueTreeState().getParameter(id);
             values.add(parameter != nullptr
               ? juce::var(parameter->convertFrom0to1(parameter->getValue()))
@@ -199,11 +199,13 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
              juce::WebBrowserComponent::NativeFunctionCompletion complete) {
           if (args.size()!=2 || !args[0].isString()) {complete(false);return;}
           const auto id=args[0].toString();
-          if (id!="cutoff" && id!="resonance") {complete(false);return;}
+          if (id!="cutoff" && id!="resonance" && id!="filterMode") {complete(false);return;}
           auto* parameter=p.getValueTreeState().getParameter(id);
           if (parameter==nullptr) {complete(false);return;}
           const float value=static_cast<float>(static_cast<double>(args[1]));
           if (!std::isfinite(value)) {complete(false);return;}
+          if (id=="filterMode" && (value<0.0f || value>5.0f
+              || std::floor(value)!=value)) {complete(false);return;}
           parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
           complete(true);
         })
