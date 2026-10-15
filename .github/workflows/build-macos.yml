@@ -124,6 +124,56 @@ jobs:
           print("Generated oscillator bridge and native bindings validated")
           PY
           node --check /tmp/freedom-native-bridge-check.js
+      - name: Exercise oscillator bridge behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs = require('fs');
+          const vm = require('vm');
+          const assert = require('node:assert/strict');
+          const code = fs.readFileSync('/tmp/freedom-native-bridge-check.js','utf8');
+          const fields = ['On','Wave','Volume','Octave','Semitone','Fine'];
+          const state = {}, host = [];
+          for (let osc=1; osc<=3; osc++) for (const field of fields) {
+            state['Osc_'+osc+'_'+field] = 0;
+            host.push(0);
+          }
+          const writes = [];
+          let tick;
+          const api = {
+            freedomGetOscillators: async () => [...host],
+            freedomSetOscillator: async (osc,field,value) => {
+              const index=(osc-1)*6+fields.indexOf(field);
+              writes.push([osc,field,value]);
+              host[index]=value;
+              return true;
+            }
+          };
+          const window = {
+            __JUCE__: {backend: {getNativeFunction: name => api[name]}},
+            LibertyFreedomUI: {
+              getParameters: () => ({...state}),
+              setParameter: (key,value) => {state[key]=value;}
+            }
+          };
+          vm.runInNewContext(code,{window,setInterval: callback => {tick=callback;}});
+          assert.equal(typeof tick,'function');
+          const sleep = () => new Promise(resolve=>setImmediate(resolve));
+          (async () => {
+            host[2]=0.4;
+            tick(); await sleep();
+            assert.equal(state.Osc_1_Volume,0.4,'host initial state must reach UI');
+            assert.equal(writes.length,0,'initialization must not overwrite host');
+            state.Osc_2_Volume=0.7;
+            tick(); await sleep();
+            assert.equal(host[8],0.7,'UI edit must reach native engine');
+            host[8]=0.2;
+            tick(); await sleep();
+            assert.equal(state.Osc_2_Volume,0.2,'host automation must reach UI');
+            console.log('Oscillator bridge mock: initialization, UI->native, host->UI passed');
+          })().catch(error => {console.error(error);process.exitCode=1;});
+          JS
       - name: Fetch JUCE
         shell: bash
         run: |
