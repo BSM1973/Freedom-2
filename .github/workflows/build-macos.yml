@@ -965,7 +965,13 @@ jobs:
               assert(std::abs(static_cast<float>(originalTree.getChild(i).getProperty("value"))
                      -replacement[i])<0.0001f);
             }
-            const char badChunk[]="invalid host chunk";
+            // Reject truncated binary host state snapshots.
+             for(size_t length=0;length<hostChunk.getSize();++length){
+               auto truncated=juce::AudioProcessor::getXmlFromBinary(
+                   hostChunk.getData(),static_cast<int>(length));
+               assert(truncated==nullptr);
+             }
+             const char badChunk[]="invalid host chunk";
             assert(juce::AudioProcessor::getXmlFromBinary(badChunk,sizeof(badChunk))==nullptr);
             std::cout<<"JUCE host binary state roundtrip: 5 filter ADSR values restored; invalid chunk rejected\\n";
           }
