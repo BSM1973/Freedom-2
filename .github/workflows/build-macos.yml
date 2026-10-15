@@ -60,7 +60,7 @@ jobs:
           page=root/"index.html"
           if page.exists():
               html=page.read_text(errors="replace")
-              ids=re.findall(r'\\bid\\s*=\\s*["\\']([^"\\']+)["\\']',html,re.I)
+              ids=re.findall(r'id="([^"]+)"',html,re.I)
               print("=== HTML CONTROL IDS (first 250) ===")
               print(" ".join(ids[:250]))
               print("=== HTML OSCILLATOR / NATIVE BRIDGE CLUES ===")
