@@ -44,7 +44,9 @@ editor_cpp.write_text("""#include "PluginEditor.h"
 Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
   : juce::AudioProcessorEditor(&p), processor(p) {
  addAndMakeVisible(browser);
- setSize(1400, 920);
+ setResizable(true, true);
+ setResizeLimits(900, 560, 2200, 1400);
+ setSize(1200, 720);
  // A giant percent-encoded data: URL is not reliable in embedded WebKit.
  // Load the original HTML as a real local document instead.
  const auto folder = juce::File::getSpecialLocation(juce::File::tempDirectory)
