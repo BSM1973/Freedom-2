@@ -236,7 +236,7 @@ jobs:
             }
           };
           vm.runInNewContext(code,{window,setInterval:callback=>timers.push(callback)});
-          assert.equal(timers.length,2,'oscillator and filter timers expected');
+          assert.equal(timers.length,3,'oscillator, filter and filter envelope timers expected');
           const tick=timers[1],flush=()=>new Promise(r=>setImmediate(r));
           (async()=>{
             tick();await flush();
