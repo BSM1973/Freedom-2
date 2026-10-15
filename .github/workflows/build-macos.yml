@@ -1060,6 +1060,16 @@ jobs:
           unzip -Z1 Freedom-2-macOS-ARM64.zip | grep -Fq 'Freedom 2.component/Contents/Info.plist'
           unzip -Z1 Freedom-2-macOS-ARM64.zip | grep -Fq 'Freedom 2.vst3/Contents/Info.plist'
           echo "Distribution ZIP integrity and AU/VST3 contents verified"
+          # Round-trip the archive and compare the actual bundle metadata byte-for-byte.
+          mkdir -p "$RUNNER_TEMP/freedom-zip-check"
+          ditto -x -k Freedom-2-macOS-ARM64.zip "$RUNNER_TEMP/freedom-zip-check"
+          for format in component vst3; do
+            original="dist/Freedom 2.$format/Contents/Info.plist"
+            restored="$RUNNER_TEMP/freedom-zip-check/dist/Freedom 2.$format/Contents/Info.plist"
+            test -f "$restored"
+            cmp "$original" "$restored"
+          done
+          echo "Distribution ZIP extraction and AU/VST3 plist round-trip verified"
       - uses: actions/upload-artifact@v4
         with:
           name: Freedom-2-macOS-ARM64
