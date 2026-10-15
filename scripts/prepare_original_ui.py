@@ -28,8 +28,8 @@ for oscillator in (1,2,3):
             raise RuntimeError(f"Original HTML missing oscillator control: {key}")
 if 'getParameters' not in source_html or 'onParameterChange' not in source_html:
     raise RuntimeError("Original HTML parameter-change API not found")
-if 'Osc_' not in native_params:
-    raise RuntimeError("Native processor has no oscillator parameters")
+if 'id("On")' not in native_params or 'id("Wave")' not in native_params or 'addFloat' not in native_params:
+    raise RuntimeError("Native oscillator parameter factory not found")
 print("Oscillator HTML controls and native parameter family identified (bridge pending).")
 (assets/"index.html").write_bytes(html.read_bytes())
 s=cmake.read_text()
