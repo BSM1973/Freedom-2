@@ -824,6 +824,35 @@ jobs:
               assert(std::abs(static_cast<float>(hostTree.getChild(i).getProperty("value"))
                      -replacement[i])<0.0001f);
             }
+            // Persist a third host snapshot and verify earlier chunks stay immutable.
+            const float thirdValues[]={0.003f,0.2f,0.0f,8.0f,-4.0f};
+            juce::ValueTree third("PARAMETERS");
+            for(int i=0;i<5;i++){
+              juce::ValueTree param("PARAM");
+              param.setProperty("id",ids[i],nullptr);
+              param.setProperty("value",thirdValues[i],nullptr);
+              third.addChild(param,-1,nullptr);
+            }
+            auto thirdXml=third.createXml();
+            assert(thirdXml!=nullptr);
+            juce::MemoryBlock thirdChunk;
+            juce::AudioProcessor::copyXmlToBinary(*thirdXml,thirdChunk);
+            auto thirdParsed=juce::AudioProcessor::getXmlFromBinary(
+                thirdChunk.getData(),static_cast<int>(thirdChunk.getSize()));
+            assert(thirdParsed!=nullptr);
+            auto thirdTree=juce::ValueTree::fromXml(*thirdParsed);
+            for(int i=0;i<5;i++){
+              assert(std::abs(static_cast<float>(thirdTree.getChild(i).getProperty("value"))
+                     -thirdValues[i])<0.0001f);
+            }
+            auto originalAgain=juce::AudioProcessor::getXmlFromBinary(
+                hostChunk.getData(),static_cast<int>(hostChunk.getSize()));
+            assert(originalAgain!=nullptr);
+            auto originalTree=juce::ValueTree::fromXml(*originalAgain);
+            for(int i=0;i<5;i++){
+              assert(std::abs(static_cast<float>(originalTree.getChild(i).getProperty("value"))
+                     -replacement[i])<0.0001f);
+            }
             const char badChunk[]="invalid host chunk";
             assert(juce::AudioProcessor::getXmlFromBinary(badChunk,sizeof(badChunk))==nullptr);
             std::cout<<"JUCE host binary state roundtrip: 5 filter ADSR values restored; invalid chunk rejected\\n";
