@@ -321,6 +321,12 @@ jobs:
                      and 'HP12' in line and 'BP12' in line and 'NOTCH' in line
                      for line in lines),"Six native filter modes not found"
           for line in lines: print(line[:700])
+          # The original preset bank stores Filter_Type as an integer index.
+          # Ensure all observed preset indices fit the six native choices.
+          indices=[int(v) for v in re.findall(r'["\\\']Filter_Type["\\\']\\s*:\\s*([0-9]+)',html)]
+          assert indices,"No numeric Filter_Type values found in original preset bank"
+          assert all(0<=v<6 for v in indices),f"Unsupported Filter_Type index: {set(indices)}"
+          print("Original preset Filter_Type indices:",sorted(set(indices)))
           print("Filter mode contract inspection completed")
           PY
       - name: Fetch JUCE
