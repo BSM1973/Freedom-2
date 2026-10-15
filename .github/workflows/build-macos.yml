@@ -119,6 +119,19 @@ jobs:
           test -d "dist/Freedom 2.component"
           test -d "dist/Freedom 2.vst3"
           for item in dist/*; do codesign --force --deep --sign - "$item"; done
+          # Validate both plugin bundles before publishing the artifact.
+          for bundle in "dist/Freedom 2.component" "dist/Freedom 2.vst3"; do
+            test -f "$bundle/Contents/Info.plist"
+            /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$bundle/Contents/Info.plist"
+            codesign --verify --deep --strict --verbose=2 "$bundle"
+            executable=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$bundle/Contents/Info.plist")
+            test -f "$bundle/Contents/MacOS/$executable"
+            file "$bundle/Contents/MacOS/$executable" | grep -q 'arm64'
+          done
+          # JUCE must advertise this plugin as an instrument accepting host MIDI.
+          grep -Eq 'IS_SYNTH[[:space:]]+TRUE' "$SOURCE_ROOT/plugin/CMakeLists.txt"
+          grep -Eq 'NEEDS_MIDI_INPUT[[:space:]]+TRUE' "$SOURCE_ROOT/plugin/CMakeLists.txt"
+          echo "AU/VST3 signatures, ARM64 binaries and native MIDI flags validated"
           ditto -c -k --sequesterRsrc --keepParent dist Freedom-2-macOS-ARM64.zip
       - uses: actions/upload-artifact@v4
         with:
