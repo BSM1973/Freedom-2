@@ -621,6 +621,38 @@ jobs:
             for(int i=0;i<100;i++)renderPoly();
             std::cout<<"Polyphonic filter ADSR: chord energy="<<chordEnergy
                      <<", active voices after release="<<poly.activeVoices()<<"\n";
+            // Stress filter ADSR boundaries while notes play; audio must stay finite.
+            FreedomDSP stress(48000.0);
+            FreedomDSP::Parameters stressParams{};
+            stressParams.cutoffHz=1200.0f;
+            stressParams.filterEnvAttack=0.001f;
+            stressParams.filterEnvDecay=0.001f;
+            stressParams.filterEnvSustain=0.0f;
+            stressParams.filterEnvRelease=0.001f;
+            stressParams.filterEnvAmount=-4.5f;
+            stress.setParameters(stressParams);
+            stress.noteOn(0,64,110);
+            std::vector<float> stressL(256),stressR(256);
+            double stressPeak=0;
+            for(int block=0;block<240;block++){
+              stressParams.filterEnvAttack=(block%2)?12.0f:0.001f;
+              stressParams.filterEnvDecay=(block%3)?0.001f:12.0f;
+              stressParams.filterEnvSustain=(block%2)?1.0f:0.0f;
+              stressParams.filterEnvRelease=(block%2)?0.001f:12.0f;
+              stressParams.filterEnvAmount=(block%2)?4.5f:-4.5f;
+              stressParams.cutoffHz=(block%2)?18000.0f:35.0f;
+              stress.setParameters(stressParams);
+              if(block%24==0)stress.noteOn(0,64+(block/24)%12,100);
+              if(block%24==12)stress.noteOff(0,64+(block/24)%12);
+              stress.process(stressL.data(),stressR.data(),stressL.size());
+              for(std::size_t i=0;i<stressL.size();i++){
+                assert(std::isfinite(stressL[i]) && std::isfinite(stressR[i]));
+                stressPeak=std::max(stressPeak,static_cast<double>(std::abs(stressL[i])));
+                stressPeak=std::max(stressPeak,static_cast<double>(std::abs(stressR[i])));
+              }
+            }
+            assert(stressPeak>0.001);
+            std::cout<<"Filter ADSR parameter stress: 240 blocks, peak="<<stressPeak<<"\n";
             std::cout<<"Native filter ADSR audio tests passed\n";
           }
           CPP
