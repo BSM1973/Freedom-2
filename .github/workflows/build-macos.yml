@@ -31,6 +31,28 @@ jobs:
             echo "::error::Missing sources. Upload Freedom_2_UI_v8.8.zip to repository root, or commit plugin/ and native/."
             exit 1
           fi
+      - name: Inspect native parameter mapping
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          root=Path(os.environ["SOURCE_ROOT"])
+          for name in ("plugin/Source/PluginProcessor.h","plugin/Source/PluginProcessor.cpp"):
+              p=root/name
+              if not p.exists(): continue
+              print("=== SOURCE AUDIT",name,"===")
+              lines=p.read_text(errors="replace").splitlines()
+              for i,line in enumerate(lines,1):
+                  if re.search(r'AudioProcessorValueTreeState|AudioParameter|addParameter|createParameterLayout|ParameterID|processBlock|class Freedom|struct Freedom',line):
+                      print(f"{i}: {line[:230]}")
+          page=root/"index.html"
+          if page.exists():
+              html=page.read_text(errors="replace")
+              ids=re.findall(r'<(?:input|select|button)\\b[^>]*?\\bid=["\\']([^"\\']+)',html,re.I)
+              print("=== HTML CONTROL IDS ===")
+              print(" ".join(ids[:160]))
+          PY
       - name: Embed original Freedom 2 UI
         shell: bash
         run: python3 scripts/prepare_original_ui.py "$SOURCE_ROOT"
