@@ -782,7 +782,34 @@ jobs:
               assert(p.getProperty("id").toString()==ids[i]);
               assert(std::abs(static_cast<float>(p.getProperty("value"))-values[i])<0.0001f);
             }
-            std::cout<<"JUCE ValueTree XML serialization roundtrip: 5 filter ADSR values restored\n";
+            // Verify a second preset replaces the first state without stale ADSR values.
+            const float replacement[]={0.005f,11.0f,0.9f,0.04f,4.25f};
+            juce::ValueTree second("PARAMETERS");
+            for(int i=0;i<5;i++){
+              juce::ValueTree param("PARAM");
+              param.setProperty("id",ids[i],nullptr);
+              param.setProperty("value",replacement[i],nullptr);
+              second.addChild(param,-1,nullptr);
+            }
+            auto secondXml=second.createXml();
+            assert(secondXml!=nullptr);
+            juce::MemoryOutputStream secondBinary;
+            secondXml->writeTo(secondBinary);
+            auto secondParsed=juce::parseXML(juce::String::fromUTF8(
+                static_cast<const char*>(secondBinary.getData()),
+                static_cast<int>(secondBinary.getDataSize())));
+            assert(secondParsed!=nullptr);
+            restored=juce::ValueTree::fromXml(*secondParsed);
+            assert(restored.getNumChildren()==5);
+            for(int i=0;i<5;i++){
+              const auto param=restored.getChild(i);
+              assert(param.getProperty("id").toString()==ids[i]);
+              assert(std::abs(static_cast<float>(param.getProperty("value"))-replacement[i])<0.0001f);
+              assert(std::abs(static_cast<float>(param.getProperty("value"))-values[i])>0.0001f);
+            }
+            // Invalid or truncated state must not be mistaken for a valid preset.
+            assert(juce::parseXML("<PARAMETERS><PARAM") == nullptr);
+            std::cout<<"JUCE ValueTree XML serialization: two distinct ADSR presets restored; truncated state rejected\n";
           }
           CPP
           cmake -S "$RUNNER_TEMP/juce-state-test" -B "$RUNNER_TEMP/juce-state-test/build" \
