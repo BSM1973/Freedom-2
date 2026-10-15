@@ -1070,6 +1070,15 @@ jobs:
             cmp "$original" "$restored"
           done
           echo "Distribution ZIP extraction and AU/VST3 plist round-trip verified"
+          # Confirm the extracted bundles contain real, nonempty Mach-O binaries.
+          for format in component vst3; do
+            bundle="$RUNNER_TEMP/freedom-zip-check/dist/Freedom 2.$format"
+            executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Contents/Info.plist")
+            binary="$bundle/Contents/MacOS/$executable"
+            test -s "$binary"
+            file "$binary" | grep -q 'Mach-O'
+          done
+          echo "Extracted AU and VST3 executables verified"
       - uses: actions/upload-artifact@v4
         with:
           name: Freedom-2-macOS-ARM64
