@@ -644,6 +644,35 @@ jobs:
             }
             assert(switchEnergy>0.01);
             std::cout<<"Rapid filter ADSR preset switching: 120 finite audio blocks\\n";
+            // A chord must survive preset switching and staggered MIDI note-offs.
+            FreedomDSP chordSwitch(48000.0);
+            FreedomDSP::Parameters chordParams{};
+            chordParams.cutoffHz=900.0f;
+            chordParams.filterMode=FreedomDSP::FilterMode::LP24;
+            chordParams.filterEnvAttack=0.01f;
+            chordParams.filterEnvDecay=0.1f;
+            chordParams.filterEnvSustain=0.5f;
+            chordParams.filterEnvRelease=0.15f;
+            chordParams.filterEnvAmount=2.0f;
+            chordSwitch.setParameters(chordParams);
+            chordSwitch.noteOn(0,48,110);
+            chordSwitch.noteOn(0,55,105);
+            chordSwitch.noteOn(0,60,100);
+            std::vector<float> chordL(256),chordR(256);
+            double chordEnergy=0;
+            for(int block=0;block<96;block++){
+              if(block==24)chordSwitch.noteOff(0,48);
+              if(block==48)chordSwitch.noteOff(0,55);
+              if(block==72)chordSwitch.noteOff(0,60);
+              chordParams.filterEnvAmount=(block%2==0)?-2.5f:3.5f;
+              chordParams.filterEnvSustain=(block%3==0)?0.0f:0.8f;
+              chordSwitch.setParameters(chordParams);
+              chordSwitch.process(chordL.data(),chordR.data(),256);
+              for(float sample:chordL){assert(std::isfinite(sample));chordEnergy+=std::abs(sample);}
+              for(float sample:chordR)assert(std::isfinite(sample));
+            }
+            assert(chordEnergy>0.01);
+            std::cout<<"MIDI chord with staggered note-offs and live ADSR changes: 96 finite blocks\\n";
             // Sustain pedal must postpone filter envelope release until pedal-up.
             auto pedalRender=[](bool holdPedal){
               FreedomDSP dsp(48000.0);
