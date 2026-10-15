@@ -205,6 +205,27 @@ jobs:
             console.log('Oscillator bridge mock: initialization, UI edits, automation, conflict, editor reopen passed');
           })().catch(error => {console.error(error);process.exitCode=1;});
           JS
+      - name: Audit filter parameter contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          root=Path(os.environ["SOURCE_ROOT"])
+          html=(root/"index.html").read_text(errors="replace")
+          processor=(root/"plugin/Source/PluginProcessor.cpp").read_text(errors="replace")
+          # Report exact UI keys and native parameter declarations before
+          # implementing any mapping; do not guess or modify the audio engine.
+          ui_keys=sorted(set(re.findall(r'["\\\'](Filter_[A-Za-z0-9_]+)["\\\']',html)))
+          native_lines=[(n,line.strip()) for n,line in enumerate(processor.splitlines(),1)
+                        if re.search(r'filter|cutoff|resonan',line,re.I)]
+          print("=== ORIGINAL FILTER UI KEYS ===")
+          for key in ui_keys: print(key)
+          print("=== NATIVE FILTER REFERENCES ===")
+          for n,line in native_lines: print(f"{n}: {line[:300]}")
+          print(f"Filter audit: {len(ui_keys)} UI keys, {len(native_lines)} native references")
+          PY
       - name: Fetch JUCE
         shell: bash
         run: |
