@@ -53,7 +53,9 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
    jassertfalse;
    return;
  }
- const auto page = folder.getChildFile("index.html");
+ // Each plugin instance owns a separate document: no collisions between
+ // AU, VST3, Standalone or multiple instances in the same host.
+ const auto page = folder.getNonexistentChildFile("freedom2-ui", ".html", false);
  const juce::MemoryBlock bytes(BinaryData::index_html,
                                static_cast<size_t>(BinaryData::index_htmlSize));
  if (!page.replaceWithData(bytes.getData(), bytes.getSize())) {
