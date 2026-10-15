@@ -332,6 +332,28 @@ jobs:
           print("Native filter envelope references:",refs)
           print("Audit only: no new DSP parameters or behavior")
           PY
+      - name: Verify filter envelope implementation prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          root=Path(os.environ["SOURCE_ROOT"])
+          processor=(root/"plugin/Source/PluginProcessor.cpp").read_text(errors="replace")
+          dsp_h=(root/"native/include/FreedomDSP.h")
+          dsp_cpp=(root/"native/src/FreedomDSP.cpp")
+          assert dsp_cpp.exists(),"Native DSP implementation missing"
+          dsp=dsp_cpp.read_text(errors="replace")
+          print("=== FILTER ENVELOPE IMPLEMENTATION READINESS ===")
+          for key in ("filterEnvAttack","filterEnvDecay","filterEnvSustain",
+                      "filterEnvRelease","filterEnvAmount"):
+              found=bool(re.search(r'\b'+re.escape(key)+r'\b',processor+"\n"+dsp))
+              print(key, "present" if found else "not implemented")
+          print("Native DSP file:",dsp_cpp.relative_to(root))
+          print("Native header candidate:",dsp_h.relative_to(root),"exists:",dsp_h.exists())
+          print("NOTE: UI filter ADSR controls are not yet proven to modulate audio")
+          PY
       - name: Verify original filter mode mapping
         shell: bash
         run: |
