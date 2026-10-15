@@ -750,10 +750,11 @@ jobs:
           target_sources(FreedomStateRoundtrip PRIVATE main.cpp)
           target_compile_features(FreedomStateRoundtrip PRIVATE cxx_std_17)
           target_compile_options(FreedomStateRoundtrip PRIVATE -UNDEBUG)
-          target_link_libraries(FreedomStateRoundtrip PRIVATE juce::juce_core juce::juce_data_structures)
+          target_link_libraries(FreedomStateRoundtrip PRIVATE juce::juce_core juce::juce_data_structures juce::juce_audio_processors)
           CMAKE
           cat > "$RUNNER_TEMP/juce-state-test/main.cpp" <<'CPP'
           #include <juce_data_structures/juce_data_structures.h>
+          #include <juce_audio_processors/juce_audio_processors.h>
           #include <cassert>
           #include <cmath>
           #include <iostream>
@@ -809,7 +810,23 @@ jobs:
             }
             // Invalid or truncated state must not be mistaken for a valid preset.
             assert(juce::parseXML("<PARAMETERS><PARAM") == nullptr);
-            std::cout<<"JUCE ValueTree XML serialization: two distinct ADSR presets restored; truncated state rejected\n";
+            // Match the exact binary XML envelope used by Freedom2Processor.
+            juce::MemoryBlock hostChunk;
+            juce::AudioProcessor::copyXmlToBinary(*secondXml,hostChunk);
+            assert(hostChunk.getSize()>0);
+            auto hostXml=juce::AudioProcessor::getXmlFromBinary(
+                hostChunk.getData(),static_cast<int>(hostChunk.getSize()));
+            assert(hostXml!=nullptr);
+            auto hostTree=juce::ValueTree::fromXml(*hostXml);
+            assert(hostTree.getNumChildren()==5);
+            for(int i=0;i<5;i++){
+              assert(hostTree.getChild(i).getProperty("id").toString()==ids[i]);
+              assert(std::abs(static_cast<float>(hostTree.getChild(i).getProperty("value"))
+                     -replacement[i])<0.0001f);
+            }
+            const char badChunk[]="invalid host chunk";
+            assert(juce::AudioProcessor::getXmlFromBinary(badChunk,sizeof(badChunk))==nullptr);
+            std::cout<<"JUCE host binary state roundtrip: 5 filter ADSR values restored; invalid chunk rejected\\n";
           }
           CPP
           cmake -S "$RUNNER_TEMP/juce-state-test" -B "$RUNNER_TEMP/juce-state-test/build" \
