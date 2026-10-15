@@ -18,7 +18,7 @@ assert all(p.is_file() for p in (cmake,editor_h,editor_cpp,html))
 assets=plugin/"WebUI"
 assets.mkdir(exist_ok=True)
 (assets/"index.html").write_bytes(html.read_bytes())
-s=cmake.read_text()
+s=cmake.read_text()\ns=s.replace("JUCE_WEB_BROWSER=0", "JUCE_WEB_BROWSER=1")
 if "juce_add_binary_data(Freedom2WebUI" not in s:
     s += """
 juce_add_binary_data(Freedom2WebUI SOURCES WebUI/index.html)
