@@ -741,6 +741,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/juce-state-test"
+          export JUCE_DIR="$RUNNER_TEMP/JUCE"
           cat > "$RUNNER_TEMP/juce-state-test/CMakeLists.txt" <<'CMAKE'
           cmake_minimum_required(VERSION 3.22)
           project(FreedomStateRoundtrip LANGUAGES CXX)
