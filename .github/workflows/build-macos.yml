@@ -60,9 +60,14 @@ jobs:
           page=root/"index.html"
           if page.exists():
               html=page.read_text(errors="replace")
-              ids=re.findall(r'\\bid=([A-Za-z0-9_-]+)',html,re.I)
-              print("=== HTML CONTROL IDS ===")
-              print(" ".join(ids[:160]))
+              ids=re.findall(r'\\bid\\s*=\\s*["\\']([^"\\']+)["\\']',html,re.I)
+              print("=== HTML CONTROL IDS (first 250) ===")
+              print(" ".join(ids[:250]))
+              print("=== HTML OSCILLATOR / NATIVE BRIDGE CLUES ===")
+              for i,line in enumerate(html.splitlines(),1):
+                  if re.search(r'osc[123]|oscillator|webmidi|requestMIDIAccess|setParameter|juce\\.',line,re.I):
+                      print(f"{i}: {line[:260]}")
+                      if i > 8000: break
           PY
       - name: Embed original Freedom 2 UI
         shell: bash
