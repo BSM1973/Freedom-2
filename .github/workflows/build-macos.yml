@@ -687,6 +687,36 @@ jobs:
           print("AU/VST3 state contract: 5 filter ADSR parameters registered, DSP/UI mapped, APVTS host save/restore present")
           print("Static contract check only; actual DAW preset roundtrip remains to be tested")
           PY
+      - name: Verify filter ADSR preset bank compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          root=Path(os.environ["SOURCE_ROOT"])
+          html=(root/"index.html").read_text(errors="replace")
+          processor=(root/"plugin/Source/PluginProcessor.cpp").read_text(errors="replace")
+          limits={
+              "Attack":(.001,12.0),
+              "Decay":(.001,12.0),
+              "Sustain":(0.0,1.0),
+              "Release":(.001,12.0),
+              "Amount":(-4.5,4.5),
+          }
+          total=0
+          for field,(minimum,maximum) in limits.items():
+              key="Filter_Envelope_"+field
+              values=[float(v) for v in re.findall(
+                  r'["\x27]'+re.escape(key)+r'["\x27]\s*:\s*(-?\d+(?:\.\d+)?)',html)]
+              assert values,f"No factory preset values found for {key}"
+              invalid=[v for v in values if not minimum<=v<=maximum]
+              assert not invalid,f"{key}: values outside native parameter range: {invalid[:10]}"
+              assert 'filterEnv'+field in processor,f"Native parameter missing: {field}"
+              total+=len(values)
+              print(f"{key}: {len(values)} preset values; observed [{min(values)}, {max(values)}], native [{minimum}, {maximum}]")
+          print(f"Filter ADSR factory preset compatibility: {total} values within native ranges")
+          PY
       - name: Fetch JUCE
         shell: bash
         run: |
