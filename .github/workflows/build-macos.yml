@@ -171,7 +171,17 @@ jobs:
             host[8]=0.2;
             tick(); await sleep();
             assert.equal(state.Osc_2_Volume,0.2,'host automation must reach UI');
-            console.log('Oscillator bridge mock: initialization, UI->native, host->UI passed');
+            // Simultaneous edits: DAW automation must take precedence.
+            state.Osc_3_Volume=0.8;
+            host[14]=0.35;
+            tick(); await sleep();
+            assert.equal(state.Osc_3_Volume,0.35,'host must win simultaneous edit');
+            assert.equal(host[14],0.35,'simultaneous UI edit must not overwrite host');
+            // A subsequent isolated UI edit must still work.
+            state.Osc_3_Volume=0.6;
+            tick(); await sleep();
+            assert.equal(host[14],0.6,'UI must regain control after automation');
+            console.log('Oscillator bridge mock: initialization, UI->native, host->UI, conflict priority passed');
           })().catch(error => {console.error(error);process.exitCode=1;});
           JS
       - name: Fetch JUCE
