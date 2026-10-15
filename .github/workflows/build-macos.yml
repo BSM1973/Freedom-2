@@ -300,6 +300,29 @@ jobs:
           for n,line in native_lines: print(f"{n}: {line[:300]}")
           print(f"Filter audit: {len(ui_keys)} UI keys, {len(native_lines)} native references")
           PY
+      - name: Verify original filter mode mapping
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          root=Path(os.environ["SOURCE_ROOT"])
+          html=(root/"index.html").read_text(errors="replace")
+          native=(root/"plugin/Source/PluginProcessor.cpp").read_text(errors="replace")
+          print("=== FILTER TYPE ORIGINAL UI CONTEXT ===")
+          matches=list(re.finditer(r'Filter_Type',html))
+          assert matches,"Filter_Type missing from original UI"
+          for m in matches[:12]:
+              print(repr(html[max(0,m.start()-180):m.end()+240]))
+          print("=== NATIVE FILTER MODE DECLARATION ===")
+          lines=[line.strip() for line in native.splitlines() if 'filterMode' in line]
+          assert any('LP24' in line and 'LP12' in line and 'HP24' in line
+                     and 'HP12' in line and 'BP12' in line and 'NOTCH' in line
+                     for line in lines),"Six native filter modes not found"
+          for line in lines: print(line[:700])
+          print("Filter mode contract inspection completed")
+          PY
       - name: Fetch JUCE
         shell: bash
         run: |
