@@ -973,6 +973,18 @@ jobs:
              }
              const char badChunk[]="invalid host chunk";
             assert(juce::AudioProcessor::getXmlFromBinary(badChunk,sizeof(badChunk))==nullptr);
+            // Reject a valid XML payload wrapped with an invalid JUCE magic number.
+            juce::MemoryBlock corruptedMagic(hostChunk);
+            auto* magicBytes=static_cast<unsigned char*>(corruptedMagic.getData());
+            magicBytes[0]^=0xff;
+            assert(juce::AudioProcessor::getXmlFromBinary(
+                corruptedMagic.getData(),static_cast<int>(corruptedMagic.getSize()))==nullptr);
+            // A malformed length in the binary header must not restore a preset.
+            juce::MemoryBlock corruptedLength(hostChunk);
+            auto* lengthBytes=static_cast<unsigned char*>(corruptedLength.getData());
+            for(int i=4;i<8;i++)lengthBytes[i]=0xff;
+            assert(juce::AudioProcessor::getXmlFromBinary(
+                corruptedLength.getData(),static_cast<int>(corruptedLength.getSize()))==nullptr);
             std::cout<<"JUCE host binary state roundtrip: 5 filter ADSR values restored; invalid chunk rejected\\n";
           }
           CPP
