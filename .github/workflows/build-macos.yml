@@ -46,6 +46,17 @@ jobs:
               for i,line in enumerate(lines,1):
                   if re.search(r'AudioProcessorValueTreeState|AudioParameter|addParameter|createParameterLayout|ParameterID|processBlock|class Freedom|struct Freedom',line):
                       print(f"{i}: {line[:230]}")
+          print("=== MIDI / DSP PATH ===")
+          proc=root/"plugin/Source/PluginProcessor.cpp"
+          if proc.exists():
+              for i,line in enumerate(proc.read_text(errors="replace").splitlines(),1):
+                  if 55 <= i <= 145: print(f"{i}: {line[:240]}")
+          cmake=root/"plugin/CMakeLists.txt"
+          if cmake.exists():
+              print("=== PLUGIN CMAKE ===")
+              for i,line in enumerate(cmake.read_text(errors="replace").splitlines(),1):
+                  if any(k in line for k in ("IS_SYNTH","NEEDS_MIDI_INPUT","JUCE_WEB_BROWSER","juce_add_plugin","PRODUCT_NAME")):
+                      print(f"{i}: {line[:240]}")
           page=root/"index.html"
           if page.exists():
               html=page.read_text(errors="replace")
