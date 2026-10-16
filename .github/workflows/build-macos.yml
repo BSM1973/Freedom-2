@@ -96,6 +96,33 @@ jobs:
       - name: Embed original Freedom 2 UI
         shell: bash
         run: python3 scripts/prepare_original_ui.py "$SOURCE_ROOT"
+      - name: Validate injected UI JavaScript syntax and layout selectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re,subprocess,tempfile
+          page=Path(os.environ['SOURCE_ROOT'])/'plugin/Source/Resources/index.html'
+          if not page.exists():
+              candidates=list((Path(os.environ['SOURCE_ROOT'])/'plugin').rglob('index.html'))
+              assert candidates, 'Embedded UI index.html not found'
+              page=candidates[0]
+          html=page.read_text()
+          scripts=re.findall(r'<script\b([^>]*)>(.*?)</script>',html,re.S|re.I)
+          checked=0
+          for attrs,body in scripts:
+              if 'liberty-' not in attrs:continue
+              with tempfile.NamedTemporaryFile(mode='w',suffix='.js') as js:
+                  js.write(body);js.flush()
+                  result=subprocess.run(['node','--check',js.name],capture_output=True,text=True)
+                  assert result.returncode==0,(attrs,result.stderr)
+              checked+=1
+          assert checked>=3, f'Expected injected Liberty scripts, found {checked}'
+          for selector in ('.top > .sub','#libertyTools','.v08-master-strip','.v61-console'):
+              assert selector in html, f'Missing layout selector: {selector}'
+          print('Validated',checked,'injected scripts and 4 audited layout selectors')
+          PY
       - name: Verify source tree
         shell: bash
         run: |
