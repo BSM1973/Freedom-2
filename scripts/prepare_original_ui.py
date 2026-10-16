@@ -169,9 +169,62 @@ bridge = """
 })();
 </script>
 """
+# Visual-only cleanup requested for Freedom 2. Keep native DSP and preset logic intact.
+ui_cleanup = """
+<script id="liberty-ui-cleanup">
+(() => {
+  const norm = text => (text || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+  const findLabel = (label) => [...document.querySelectorAll('button, [role="button"], a, span, div, small')]
+    .find(el => el.children.length === 0 && norm(el.textContent) === label);
+  const closestButton = el => el?.closest('button, [role="button"], a') || el;
+  const hideControl = label => {
+    const el = findLabel(label);
+    if (el) closestButton(el).style.setProperty('display', 'none', 'important');
+  };
+  function removeBand(label, otherLabel) {
+    const el = findLabel(label);
+    if (!el) return;
+    let node = el;
+    // Find the narrowest full-width strip containing this label, but do not
+    // ascend into the main tab content or the synthesizer's oscillator panels.
+    for (let i=0; i<7 && node.parentElement; i++) {
+      const parent=node.parentElement;
+      const rect=parent.getBoundingClientRect();
+      const viewport=document.documentElement.clientWidth || innerWidth;
+      if (rect.width >= viewport*0.70 && rect.height > 20 && rect.height < 125) {
+        if (!otherLabel || norm(parent.textContent).includes(otherLabel)) {
+          parent.style.setProperty('display','none','important');
+          return;
+        }
+      }
+      node=parent;
+    }
+  }
+  function cleanup() {
+    const shortcuts = closestButton(findLabel('? RACCOURCIS') || findLabel('RACCOURCIS'));
+    const audit = closestButton(findLabel('AUDIT UI'));
+    if (shortcuts && audit && shortcuts !== audit) {
+      // Replace AUDIT UI in its existing toolbar without changing its listeners.
+      audit.replaceWith(shortcuts);
+    } else if (audit) {
+      audit.style.setProperty('display','none','important');
+    }
+    hideControl('WEB AUDIO EXPERIMENTAL');
+    removeBand('FREEDOM 2 · UI V1.6', 'RACCOURCIS');
+    removeBand('UI QUALITY CHECK V1.7', 'VÉRIFIER LES 4 ONGLETS');
+    removeBand('FREEDOM 2 · UI V2.0', 'CONTRÔLER LES COMMANDES');
+    removeBand('ENGINE · FREEDOM 2', 'AUDIOWORKLET EXPERIMENTAL');
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', cleanup, {once:true});
+  else cleanup();
+  // Apply once more if the UI constructs its toolbars asynchronously.
+  window.addEventListener('load', cleanup, {once:true});
+})();
+</script>
+"""
 if "</body>" not in source_html:
     raise RuntimeError("Original HTML has no body closing tag")
-(assets/"index.html").write_text(source_html.replace("</body>",bridge+"</body>",1))
+(assets/"index.html").write_text(source_html.replace("</body>",ui_cleanup+bridge+"</body>",1))
 
 s=cmake.read_text()
 s=s.replace("JUCE_WEB_BROWSER=0", "JUCE_WEB_BROWSER=1")
