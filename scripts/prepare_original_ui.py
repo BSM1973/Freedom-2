@@ -205,6 +205,60 @@ ui_cleanup = """
     hideButton('EXPORT JSON');
     hideButton('IMPORT JSON');
     hideButton('PARAM API');
+    // Exact button matching even when an icon is nested inside the button.
+    for (const button of document.querySelectorAll('button,[role="button"]')) {
+      if (normalize(button.textContent).includes('PARAM API')) hide(button);
+    }
+    // Remove oscillator header metadata without removing the actual OSCILLATOR title.
+    const oscillatorMetadata = /^(ANALOG\s+ENGINE\s*·?\s*OSC\s*0?[123]|LIBERTY\s+SYNTHESIS|OSC\s*0?[123]\s*·\s*ACTIVE)$/;
+    for (const el of nodes()) {
+      if (el.children.length !== 0) continue;
+      if (oscillatorMetadata.test(normalize(el.textContent))) hide(el);
+    }
+    // Some header metadata uses nested spans. Hide the smallest matching element,
+    // never a card or a container containing the OSCILLATOR title.
+    for (const label of ['ANALOG ENGINE', 'LIBERTY SYNTHESIS', 'OSC 01 · ACTIVE',
+                         'OSC 02 · ACTIVE', 'OSC 03 · ACTIVE']) {
+      const matches=nodes().filter(el=>normalize(el.textContent).includes(label) &&
+        ![...el.children].some(child=>normalize(child.textContent).includes(label)));
+      for(const el of matches) {
+        const text=normalize(el.textContent);
+        if (!text.includes('OSCILLATOR 0')) hide(el);
+      }
+    }
+    // Relocate the existing signal monitor (including animated level LEDs) to
+    // the former version-label position, and remove its now-empty dedicated row.
+    const version=nodes().find(el=>el.children.length===0 &&
+      normalize(el.textContent).includes('FREEDOM 2 · PREMIUM UI V0.9'));
+    const signal=nodes().find(el=>el.children.length===0 &&
+      normalize(el.textContent)==='LIBERTY · SIGNAL MONITOR');
+    if(version && signal && !document.getElementById('liberty-relocated-signal')) {
+      const strip=signal.parentElement;
+      const level=strip && [...strip.querySelectorAll('div,span')].find(el=>
+        el !== signal && el.children.length >= 6 && el.children.length <= 32 &&
+        el.querySelectorAll('span,div').length >= 6 &&
+        el.getBoundingClientRect().width < 320);
+      const newTitle=document.createElement('span');
+      newTitle.id='liberty-relocated-signal';
+      newTitle.textContent='LIBERTY · SIGNAL MONITOR';
+      version.replaceWith(newTitle);
+      if(level) {
+        newTitle.style.display='inline-flex';
+        newTitle.style.alignItems='center';
+        newTitle.style.gap='12px';
+        newTitle.appendChild(level);
+      }
+      // Preserve the density control by placing it beside the relocated monitor.
+      const density=strip?.querySelector('button');
+      if(density && normalize(density.textContent).includes('DENSITÉ')) newTitle.appendChild(density);
+      if(strip && !normalize(strip.textContent).includes('OSCILLATOR')) {
+        const row=strip.parentElement;
+        if(row && row.getBoundingClientRect().height < 90 &&
+           !normalize(row.textContent).includes('NOM DU PRESET PERSONNEL')) hide(row);
+        else hide(strip);
+      }
+    }
+
     hideButton('ACTUALISER LES ONDES');
     // Hide diagnostic copy only, without hiding its containing toolbar.
     for (const el of nodes()) {
