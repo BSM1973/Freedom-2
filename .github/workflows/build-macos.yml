@@ -817,15 +817,13 @@ jobs:
           assert re.search(r'if\s*\(\s*xml\s*&&\s*xml->hasTagName',load.group(1)), \
               "Processor must reject invalid XML or an unexpected APVTS root tag"
           assert 'juce::ValueTree::fromXml' in load.group(1),"Processor must restore XML into a ValueTree"
-          # Ensure the saved APVTS tree is the one serialized and restored.
-          assert re.search(r'auto\s+(\w+)\s*=\s*apvts\.copyState\(\)',save.group(1)), \
-              "Processor must snapshot APVTS before serialization"
-          snapshot=re.search(r'auto\s+(\w+)\s*=\s*apvts\.copyState\(\)',save.group(1)).group(1)
-          assert re.search(r'\b'+re.escape(snapshot)+r'\.createXml\(\)',save.group(1)), \
-              "Processor must serialize the captured APVTS state"
+          # Accept both direct and two-step APVTS XML serialization.
+          direct=re.search(r'apvts\.copyState\(\)\.createXml\(\)',save.group(1))
+          snapshot=re.search(r'auto\s+(\w+)\s*=\s*apvts\.copyState\(\)\s*;',save.group(1))
+          staged=bool(snapshot and re.search(r'\b'+re.escape(snapshot.group(1))+r'\.createXml\(\)',save.group(1)))
+          assert direct or staged,"Processor must serialize its APVTS snapshot as XML"
           assert re.search(r'apvts\.replaceState\s*\(\s*juce::ValueTree::fromXml\s*\(\s*\*xml\s*\)\s*\)',load.group(1)), \
               "Processor must replace APVTS using the decoded host XML"
-
           print("AU/VST3 state contract: 5 filter ADSR parameters registered, DSP/UI mapped, APVTS host save/restore present")
           print("Static contract check only; actual DAW preset roundtrip remains to be tested")
           PY
