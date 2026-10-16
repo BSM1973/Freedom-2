@@ -208,6 +208,39 @@ ui_cleanup = """
       primary.dataset.libertyPrimaryWave='true';
       hide(duplicate);
     }
+    // Retain the four large waveform choices. Remove only a separate WAVE
+    // parameter control, never the primary SINE/SAW/PULSE/TRI selector.
+    for(let osc=1;osc<=3;osc++){
+      const key='Osc_'+osc+'_Wave';
+      const candidates=[...document.querySelectorAll('[data-param],[data-parameter],input,select')];
+      for(const node of candidates){
+        const bound=node.getAttribute('data-param')||node.getAttribute('data-parameter')||node.name||node.id||'';
+        if(bound!==key)continue;
+        const container=node.closest('label,.param-row,.parameter-row,.control-row')||node.parentElement;
+        if(container && !container.querySelector('[data-liberty-primary-wave]') &&
+           !['BUTTON'].includes(node.tagName))hide(container);
+      }
+    }
+    // Make the existing oscillator enable buttons look and behave like
+    // accessible on/off switches without creating a second parameter.
+    for(let osc=1;osc<=3;osc++){
+      const key='Osc_'+osc+'_On';
+      for(const node of document.querySelectorAll('[data-param],[data-parameter],button')){
+        const bound=node.getAttribute('data-param')||node.getAttribute('data-parameter')||'';
+        if(bound!==key)continue;
+        node.setAttribute('role','switch');
+        node.setAttribute('aria-label','Oscillateur '+osc+' activé');
+        const sync=()=>{
+          const enabled=Number(window.LibertyFreedomUI?.getParameters?.()[key])>=0.5;
+          node.setAttribute('aria-checked',String(enabled));
+          node.style.borderRadius='999px';
+          node.style.background=enabled?'#247f6b':'#343b48';
+          node.style.border='1px solid '+(enabled?'#4ad6a8':'#717988');
+        };
+        sync();
+        if(!node.dataset.libertySwitch){node.dataset.libertySwitch='1';setInterval(sync,300);}
+      }
+    }
     // Remove only the secondary waveform-monitor captions.
     for(const el of allElements){
       if(el.children.length===0 && normalize(el.textContent).includes('WAVEFORM MONITOR') &&
