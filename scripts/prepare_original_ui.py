@@ -476,6 +476,18 @@ if 'LIBERTY_MIDI_TRACE' not in processor_source:
     if '#include <cstdio>' not in processor_source:
         processor_source='#include <cstdio>\\n'.replace('\\n','\\n')+processor_source
     processor_cpp.write_text(processor_source)
+# JUCE MidiMessage::getVelocity() already returns MIDI velocity 0..127.
+# Multiplying by 127 makes noteOn reject every normal key press as invalid.
+processor_source=processor_cpp.read_text()
+wrong='juce::roundToInt(m.getVelocity()*127.f)'
+correct='static_cast<int>(m.getVelocity())'
+if wrong in processor_source:
+    processor_source=processor_source.replace(wrong,correct)
+elif correct not in processor_source:
+    raise RuntimeError("Expected MIDI velocity conversion missing")
+# Remove the temporary printf trace, whose %f specifier was not type-safe.
+processor_source=re.sub(r'std::fprintf\(stderr,"LIBERTY_MIDI_TRACE.*?;\s*', '', processor_source)
+processor_cpp.write_text(processor_source)
 processor_h=plugin/"Source/PluginProcessor.h"
 header=processor_h.read_text()
 if "getValueTreeState()" not in header:
