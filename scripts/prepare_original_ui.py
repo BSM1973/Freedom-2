@@ -34,6 +34,22 @@ print("Oscillator HTML controls and native parameter family identified (bridge p
 # Nonvisual OSC1 bridge. It observes the existing UI state without altering
 # controls, layout, styles, or the original HTML source archive.
 bridge = ""  # Legacy bidirectional polling disabled: it overwrote preset values with host defaults.\n# Visual-only cleanup requested for Freedom 2. Keep native DSP and preset logic intact.
+browser_audio_guard = """
+<script id="liberty-disable-browser-audio">
+(() => {
+  // The native JUCE DSP is the only audible engine. The original HTML
+  // preview may still synthesize for visualization, but must never feed
+  // the system audio output when a waveform button is clicked.
+  if(typeof AudioNode==='undefined'||!AudioNode.prototype.connect)return;
+  const original=AudioNode.prototype.connect;
+  AudioNode.prototype.connect=function(destination,...args){
+    if(typeof AudioDestinationNode!=='undefined' &&
+       destination instanceof AudioDestinationNode)return destination;
+    return original.call(this,destination,...args);
+  };
+})();
+</script>
+"""
 ui_cleanup = """
 <style id="liberty-ui-cleanup-style">
 /* Cleanup-only styling: the oscillator and preset layouts remain untouched. */
@@ -496,7 +512,7 @@ keyboard_bridge = """
 """
 if "</body>" not in source_html:
     raise RuntimeError("Original HTML has no body closing tag")
-(assets/"index.html").write_text(source_html.replace("</body>",ui_cleanup+bridge+native_api_shim+full_bridge+keyboard_bridge+"</body>",1))
+(assets/"index.html").write_text(source_html.replace("<head>","<head>"+browser_audio_guard,1).replace("</body>",ui_cleanup+bridge+native_api_shim+full_bridge+keyboard_bridge+"</body>",1))
 
 s=cmake.read_text()
 s=s.replace("JUCE_WEB_BROWSER=0", "JUCE_WEB_BROWSER=1")
