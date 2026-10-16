@@ -1187,7 +1187,11 @@ jobs:
                   peak=std::max(peak,(double)std::abs(audio.getSample(ch,n)));
               notes.clear();
             }
-            assert(std::isfinite(peak) && peak>0.00001);
+            std::cout<<"Native MIDI render measured peak: "<<peak<<std::endl;
+            if(!(std::isfinite(peak) && peak>0.00001)) {
+              std::cerr<<"SILENT DSP: host MIDI render produced no audible samples"<<std::endl;
+              return 2;
+            }
             instrument.releaseResources();
             std::cout<<"Freedom2 native host MIDI -> stereo audio peak: "<<peak<<std::endl;
             std::cout<<"Real Freedom2Processor ADSR host state roundtrip passed\n";
