@@ -533,6 +533,36 @@ full_bridge = """
 })();
 </script>
 """
+header_trim = """
+<script>
+(() => {
+const norm=e=>(e?.textContent||'').replace(/\\s+/g,' ').trim().toUpperCase();
+const hide=e=>{if(e){e.hidden=true;e.style.display='none';}};
+function clean(){
+const all=[...document.querySelectorAll('div,span,small,p')];
+for(const el of all)if(!el.children.length && (/ANALOG SYNTHESIS.*PREMIUM EDITION/.test(norm(el))||norm(el)==='GRAPHITE / TITANIUM'))hide(el);
+const buttons=[...document.querySelectorAll('button')];
+const undo=buttons.find(b=>norm(b).includes('ANNULER'));
+const redo=buttons.find(b=>norm(b).includes('RÉTABLIR'));
+const browser=buttons.find(b=>norm(b).includes('PRESET BROWSER'));
+if(undo&&redo&&browser){
+const header=browser.parentElement?.parentElement;
+if(header){
+let holder=document.getElementById('liberty-history-header');
+if(!holder){holder=document.createElement('div');holder.id='liberty-history-header';holder.style.cssText='position:absolute;right:535px;top:22px;display:flex;gap:8px;z-index:10';header.style.position='relative';header.appendChild(holder);}
+holder.append(undo,redo);
+}}
+for(const b of buttons)if(['COMPACT','FENÊTRE','AUTO'].includes(norm(b)))hide(b);
+for(const el of all)if(!el.children.length&&norm(el)==='LIBERTY · SIGNAL MONITOR')hide(el.parentElement);
+for(const input of document.querySelectorAll('input'))if(/Trouver un paramètre/i.test(input.placeholder||''))hide(input.parentElement);
+}
+let busy=false;
+const observer=new MutationObserver(changes=>{if(!busy&&changes.some(c=>c.addedNodes.length))run();});
+function run(){busy=true;observer.disconnect();try{clean();}finally{busy=false;observer.observe(document.documentElement,{subtree:true,childList:true});}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});else run();
+})();
+</script>
+"""
 keyboard_bridge = """
 <script id="liberty-native-keyboard">
 (() => {
@@ -576,7 +606,7 @@ keyboard_bridge = """
 """
 if "</body>" not in source_html:
     raise RuntimeError("Original HTML has no body closing tag")
-(assets/"index.html").write_text(source_html.replace("<head>","<head>"+browser_audio_guard,1).replace("</body>",ui_cleanup+bridge+native_api_shim+full_bridge+keyboard_bridge+"</body>",1))
+(assets/"index.html").write_text(source_html.replace("<head>","<head>"+browser_audio_guard,1).replace("</body>",ui_cleanup+bridge+native_api_shim+full_bridge+keyboard_bridge+header_trim+"</body>",1))
 
 s=cmake.read_text()
 s=s.replace("JUCE_WEB_BROWSER=0", "JUCE_WEB_BROWSER=1")
