@@ -534,32 +534,100 @@ full_bridge = """
 </script>
 """
 header_trim = """
-<script>
+<style id="liberty-header-layout-css">
+#liberty-master-slot{display:flex;align-items:center;gap:8px;position:absolute;left:265px;top:29px;z-index:11;color:#cbdce7;font:600 12px system-ui}
+#liberty-master-slot input{width:115px;accent-color:#54c6df;cursor:pointer}
+#liberty-master-slot output{width:38px;text-align:right;font-variant-numeric:tabular-nums}
+#liberty-keyboard-toggle{position:absolute;right:380px;top:29px;z-index:11;padding:7px 11px;border-radius:7px;border:1px solid #426b82;background:#142b3c;color:#dce9f2;font:600 12px system-ui;cursor:pointer}
+</style>
+<script id="liberty-header-layout-js">
 (() => {
-const norm=e=>(e?.textContent||'').replace(/\\s+/g,' ').trim().toUpperCase();
-const hide=e=>{if(e){e.hidden=true;e.style.display='none';}};
-function clean(){
-const all=[...document.querySelectorAll('div,span,small,p')];
-for(const el of all)if(!el.children.length && (/ANALOG SYNTHESIS.*PREMIUM EDITION/.test(norm(el))||norm(el)==='GRAPHITE / TITANIUM'))hide(el);
-const buttons=[...document.querySelectorAll('button')];
-const undo=buttons.find(b=>norm(b).includes('ANNULER'));
-const redo=buttons.find(b=>norm(b).includes('RÉTABLIR'));
-const browser=buttons.find(b=>norm(b).includes('PRESET BROWSER'));
-if(undo&&redo&&browser){
-const header=browser.parentElement?.parentElement;
-if(header){
-let holder=document.getElementById('liberty-history-header');
-if(!holder){holder=document.createElement('div');holder.id='liberty-history-header';holder.style.cssText='position:absolute;right:535px;top:22px;display:flex;gap:8px;z-index:10';header.style.position='relative';header.appendChild(holder);}
-holder.append(undo,redo);
-}}
-for(const b of buttons)if(['COMPACT','FENÊTRE','AUTO'].includes(norm(b)))hide(b);
-for(const el of all)if(!el.children.length&&norm(el)==='LIBERTY · SIGNAL MONITOR')hide(el.parentElement);
-for(const input of document.querySelectorAll('input'))if(/Trouver un paramètre/i.test(input.placeholder||''))hide(input.parentElement);
-}
-let busy=false;
-const observer=new MutationObserver(changes=>{if(!busy&&changes.some(c=>c.addedNodes.length))run();});
-function run(){busy=true;observer.disconnect();try{clean();}finally{busy=false;observer.observe(document.documentElement,{subtree:true,childList:true});}}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});else run();
+ const norm=e=>(e?.textContent||'').replace(/\s+/g,' ').trim().toUpperCase();
+ const hide=e=>{if(e){e.hidden=true;e.style.setProperty('display','none','important');}};
+ let keyboardOpen=false;
+ function header(){
+   const browser=[...document.querySelectorAll('button')].find(b=>norm(b).includes('PRESET BROWSER'));
+   return browser?.parentElement?.parentElement||null;
+ }
+ function keyboard(){
+   const title=[...document.querySelectorAll('div,span,h2,h3,h4')].find(e=>
+     e.children.length===0&&norm(e).includes('GLOBAL PLAY KEYBOARD'));
+   if(!title)return null;
+   let section=title.parentElement;
+   for(let n=0;n<7&&section;n++,section=section.parentElement){
+     if(section.querySelectorAll('[data-note],[data-midi-note],.piano-key,.keyboard-key,.white-key,.black-key').length>=12)return section;
+     if(section.querySelectorAll('button').length>=12&&section.getBoundingClientRect().height>120)return section;
+   }
+   return title.parentElement;
+ }
+ function updateKeyboard(){
+   const section=keyboard();
+   if(section)section.style.setProperty('display',keyboardOpen?'':'none',keyboardOpen?'':'important');
+   const button=document.getElementById('liberty-keyboard-toggle');
+   if(button){button.textContent=keyboardOpen?'FERMER CLAVIER':'AFFICHER CLAVIER';button.setAttribute('aria-expanded',String(keyboardOpen));}
+ }
+ function clean(){
+   const head=header();
+   if(head){
+     head.style.position='relative';
+     // Remove only the two-line tagline, never the FREEDOM 2 logo.
+     for(const el of head.querySelectorAll('div,span,small,p')){
+       if(el.children.length===0&&(/ANALOG SYNTHESIS.*PREMIUM EDITION/.test(norm(el))||norm(el)==='GRAPHITE / TITANIUM'))hide(el);
+     }
+     if(!document.getElementById('liberty-master-slot')){
+       const master=document.createElement('label');
+       master.id='liberty-master-slot';
+       master.innerHTML='MASTER <input type="range" min="0" max="100" step="1" value="80" aria-label="Volume général"><output>80 %</output>';
+       head.appendChild(master);
+       const slider=master.querySelector('input'),output=master.querySelector('output');
+       slider.addEventListener('input',()=>{
+         const v=Number(slider.value)/100;
+         output.textContent=slider.value+' %';
+         const ui=window.LibertyFreedomUI;
+         const values=ui?.getParameters?.()||{};
+         const key=['Performance_Master_Volume','Performance_Volume','Global_Master_Volume','Global_Volume','Master_Volume','Master_Gain','Master_Level'].find(k=>k in values);
+         if(key&&ui?.setParameter)ui.setParameter(key,v);
+         else{
+           const fn=window.__JUCE__?.backend?.getNativeFunction?.('freedomSetParameter');
+           if(fn)Promise.resolve(fn('master',v)).catch(console.warn);
+         }
+       });
+     }
+     if(!document.getElementById('liberty-keyboard-toggle')){
+       const toggle=document.createElement('button');
+       toggle.type='button';toggle.id='liberty-keyboard-toggle';
+       toggle.addEventListener('click',()=>{keyboardOpen=!keyboardOpen;updateKeyboard();});
+       head.appendChild(toggle);
+     }
+   }
+   // Entire signal-monitor toolbar, identified by its own label.
+   const signal=[...document.querySelectorAll('div,span')].find(e=>
+     e.children.length===0&&norm(e)==='LIBERTY · SIGNAL MONITOR');
+   if(signal){
+     let strip=signal.parentElement;
+     for(let n=0;n<4&&strip?.parentElement;n++){
+       const rect=strip.getBoundingClientRect();
+       if(rect.width>window.innerWidth*.75 && rect.height>30 && rect.height<105)break;
+       strip=strip.parentElement;
+     }
+     if(strip&&strip!==document.body&&strip.getBoundingClientRect().height<105&&
+        !norm(strip).includes('NOM DU PRESET PERSONNEL'))hide(strip);
+   }
+   updateKeyboard();
+ }
+ let busy=false;
+ const observer=new MutationObserver(changes=>{
+   if(!busy&&changes.some(c=>c.addedNodes.length))run();
+ });
+ function run(){
+   if(busy)return;
+   busy=true;observer.disconnect();
+   try{clean();}catch(error){console.warn('Liberty header layout',error);}
+   finally{busy=false;observer.observe(document.documentElement,{childList:true,subtree:true});}
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});
+ else run();
+ window.addEventListener('load',run,{once:true});
 })();
 </script>
 """
