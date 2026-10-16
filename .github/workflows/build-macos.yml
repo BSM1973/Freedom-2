@@ -1161,20 +1161,25 @@ jobs:
                                "filterEnvRelease","filterEnvAmount"};
             const float values[]={0.16f,1.8f,0.45f,2.6f,-1.75f};
             for(int i=0;i<5;i++){
-              auto* parameter=original.getParameters().getUnchecked(0);
-              juce::ignoreUnused(parameter);
-              auto* p=original.apvts.getParameter(ids[i]);
-              assert(p!=nullptr);
-              p->setValueNotifyingHost(p->convertTo0to1(values[i]));
+              auto* p=original.getParameters().getFirst();
+              for(auto* candidate:original.getParameters())
+                if(candidate->getParameterID()==ids[i]){p=candidate;break;}
+              assert(p!=nullptr && p->getParameterID()==ids[i]);
+              auto* ranged=dynamic_cast<juce::RangedAudioParameter*>(p);
+              assert(ranged!=nullptr);
+              ranged->setValueNotifyingHost(ranged->convertTo0to1(values[i]));
             }
             juce::MemoryBlock state;
             original.getStateInformation(state);
             assert(state.getSize()>0);
             restored.setStateInformation(state.getData(),static_cast<int>(state.getSize()));
             for(int i=0;i<5;i++){
-              auto* p=restored.apvts.getParameter(ids[i]);
-              assert(p!=nullptr);
-              assert(std::abs(p->convertFrom0to1(p->getValue())-values[i])<0.001f);
+              juce::RangedAudioParameter* ranged=nullptr;
+              for(auto* candidate:restored.getParameters())
+                if(candidate->getParameterID()==ids[i])
+                  ranged=dynamic_cast<juce::RangedAudioParameter*>(candidate);
+              assert(ranged!=nullptr);
+              assert(std::abs(ranged->convertFrom0to1(ranged->getValue())-values[i])<0.001f);
             }
             std::cout<<"Real Freedom2Processor ADSR host state roundtrip passed\n";
           }
@@ -1184,9 +1189,9 @@ jobs:
           import os
           root=Path(os.environ["SOURCE_ROOT"])/"plugin"
           header=(root/"Source/PluginProcessor.h").read_text()
-          # The test needs access to the processor APVTS; expose only a test
-          # accessor in a temporary source copy, never in the shipped plugin.
-          assert "apvts" in header
+          # JUCE's public processor parameter list is sufficient; no
+          # access to the private APVTS or production header changes required.
+          assert "getStateInformation" in header and "setStateInformation" in header
           PY
           echo "Native test source prepared; linking against JUCE plugin implementation follows."
       - name: Verify compiled AU VST3 filter ADSR parameter identifiers
