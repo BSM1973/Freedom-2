@@ -550,26 +550,19 @@ header_trim = """
    return browser?.parentElement?.parentElement||null;
  }
  function keyboard(){
-   const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
-   let node;
-   while((node=walker.nextNode())){
-     if(!norm(node.parentElement).includes('GLOBAL PLAY KEYBOARD'))continue;
-     let section=node.parentElement;
-     for(let i=0;i<9&&section.parentElement;i++,section=section.parentElement){
-       const keys=section.querySelectorAll('[data-note],[data-midi-note],.piano-key,.keyboard-key,.white-key,.black-key,[class*="piano"],[class*="key-white"],[class*="key-black"]');
-       if(keys.length>=12 && section.getBoundingClientRect().width>300)return section;
-     }
-     return node.parentElement.parentElement;
+   const title=[...document.querySelectorAll('div,span,h2,h3,h4')].find(e=>
+     e.children.length===0&&norm(e).includes('GLOBAL PLAY KEYBOARD'));
+   if(!title)return null;
+   let section=title.parentElement;
+   for(let n=0;n<7&&section;n++,section=section.parentElement){
+     if(section.querySelectorAll('[data-note],[data-midi-note],.piano-key,.keyboard-key,.white-key,.black-key').length>=12)return section;
+     if(section.querySelectorAll('button').length>=12&&section.getBoundingClientRect().height>120)return section;
    }
-   return null;
+   return title.parentElement;
  }
  function updateKeyboard(){
    const section=keyboard();
-   if(section){
-     section.hidden=false;
-     section.style.setProperty('display',keyboardOpen?'':'none',keyboardOpen?'':'important');
-     if(keyboardOpen)section.style.removeProperty('display');
-   }
+   if(section)section.style.setProperty('display',keyboardOpen?'':'none',keyboardOpen?'':'important');
    const button=document.getElementById('liberty-keyboard-toggle');
    if(button){button.textContent=keyboardOpen?'FERMER CLAVIER':'AFFICHER CLAVIER';button.setAttribute('aria-expanded',String(keyboardOpen));}
  }
@@ -577,14 +570,21 @@ header_trim = """
    const head=header();
    if(head){
      head.style.position='relative';
-     // Find subtitle by its TEXT NODES, even when the line is split
-     // across several nested spans. Never touch the FREEDOM logo.
-     const walker=document.createTreeWalker(head,NodeFilter.SHOW_TEXT);
-     let textNode;
-     while((textNode=walker.nextNode())){
-       if(!/ANALOG SYNTHESIS|PREMIUM EDITION|GRAPHITE\s*[/·]\s*TITANIUM/i.test(textNode.nodeValue||''))continue;
-       const leaf=textNode.parentElement;
-       if(leaf && !leaf.contains(document.getElementById('liberty-master-slot')))hide(leaf);
+     // Hide the complete two-line subtitle block, including nested spans.
+     // Do not hide its logo or preset-browser ancestors.
+     const subtitles=[...head.querySelectorAll('div,span,small,p')].filter(el=>
+       el.children.length===0 && (/ANALOG SYNTHESIS/.test(norm(el)) ||
+       /PREMIUM EDITION/.test(norm(el)) || /GRAPHITE\s*[/·]\s*TITANIUM/.test(norm(el))));
+     for(const el of subtitles){
+       let block=el;
+       while(block.parentElement && block.parentElement!==head){
+         const parent=block.parentElement;
+         if(parent.querySelector('button,select,[role="combobox"]'))break;
+         if(parent.getBoundingClientRect().width>400)break;
+         if(parent.querySelectorAll('div,span,small,p').length>8)break;
+         block=parent;
+       }
+       hide(block);
      }
      if(!document.getElementById('liberty-master-slot')){
        const master=document.createElement('label');
@@ -624,35 +624,24 @@ header_trim = """
        toggle.style.top=Math.max(8,rect.top+(rect.height-toggle.offsetHeight)/2)+'px';
      }
    }
-   // Find the whole toolbar as the element immediately preceding the
-   // personal-preset save row, then hide it. This does not depend on the
-   // signal monitor's nested markup or on its displayed width.
+   // Remove the entire obsolete row, not just its text. Locate the
+   // presets-save row below it to ensure we never hide that row.
+   const signal=[...document.querySelectorAll('div,span')].find(e=>
+     e.children.length===0&&norm(e)==='LIBERTY · SIGNAL MONITOR');
    const save=[...document.querySelectorAll('input')].find(e=>
      /Nom du preset personnel/i.test(e.placeholder||''));
-   if(save){
-     let saveRow=save.parentElement;
-     for(let i=0;i<7&&saveRow.parentElement;i++){
-       if(saveRow.querySelectorAll('button').length>=5)break;
-       saveRow=saveRow.parentElement;
-     }
-     const toolbar=saveRow.previousElementSibling;
-     if(toolbar && /SIGNAL MONITOR|FENÊTRE|COMPACT|ANNULER|RÉTABLIR/i.test(norm(toolbar)) &&
-        !toolbar.contains(document.getElementById('liberty-master-slot'))){
-       hide(toolbar);
-     }
-   }
-   // Fallback for unusual wrappers: hide the nearest complete monitor row.
-   const signal=[...document.querySelectorAll('*')].find(e=>
-     e.children.length===0&&norm(e)==='LIBERTY · SIGNAL MONITOR');
    if(signal){
-     let target=signal;
-     for(let i=0;i<7&&target.parentElement;i++){
-       const parent=target.parentElement;
-       if(parent.contains(save)||parent.querySelector('[id="liberty-master-slot"]'))break;
-       target=parent;
-       if(parent.querySelectorAll('button').length>=2)break;
+     let row=signal;
+     for(let n=0;n<7&&row.parentElement;n++){
+       const next=row.parentElement;
+       if(next===document.body||next.contains(save))break;
+       if(next.getBoundingClientRect().width>window.innerWidth*.7){
+         row=next;
+         break;
+       }
+       row=next;
      }
-     hide(target);
+     if(row!==document.body && !row.contains(save))hide(row);
    }
    updateKeyboard();
  }
