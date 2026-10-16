@@ -1173,6 +1173,25 @@ jobs:
             }
             // Regression: the plugin must generate nonzero stereo audio from
             // host MIDI without opening its WebView or pressing Start Audio.
+            // Isolate the DSP itself from the JUCE MIDI/processor path.
+            liberty::FreedomDSP standaloneDsp;
+            standaloneDsp.prepare(48000.0);
+            liberty::FreedomDSP::Parameters diagnosticParams{};
+            diagnosticParams.masterGain=0.5f;
+            diagnosticParams.attackSeconds=0.01f;
+            diagnosticParams.decaySeconds=0.15f;
+            diagnosticParams.sustain=0.7f;
+            diagnosticParams.releaseSeconds=0.25f;
+            diagnosticParams.cutoffHz=12000.0f;
+            diagnosticParams.osc[0].enabled=true;
+            diagnosticParams.osc[0].level=0.5f;
+            standaloneDsp.setParameters(diagnosticParams);
+            standaloneDsp.noteOn(0,60,110);
+            float probeL[512]{},probeR[512]{};
+            standaloneDsp.process(probeL,probeR,512);
+            double dspPeak=0.0;
+            for(float sample:probeL)dspPeak=std::max(dspPeak,(double)std::abs(sample));
+            std::cout<<"Direct native DSP peak: "<<dspPeak<<std::endl;
             Freedom2Processor instrument;
             instrument.prepareToPlay(48000.0,512);
             juce::AudioBuffer<float> audio(2,512);
