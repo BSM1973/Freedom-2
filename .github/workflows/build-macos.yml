@@ -1130,31 +1130,6 @@ jobs:
                  if 'getStateInformation' in line or 'setStateInformation' in line])
           print("NOTE: inspection only; no Freedom2Processor runtime test is executed here.")
           PY
-      - name: Register native processor state test with CMake
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os,re
-          from pathlib import Path
-          root=Path(os.environ["SOURCE_ROOT"])/"plugin"
-          cmake=root/"CMakeLists.txt"
-          content=cmake.read_text()
-          match=re.search(r'juce_add_plugin\s*\(\s*([^\s)]+)',content)
-          assert match,"Unable to locate JUCE plugin target"
-          target=match.group(1)
-          test=Path(os.environ["RUNNER_TEMP"])/"freedom-processor-test/main.cpp"
-          assert test.exists()
-          content += f"""
-          add_executable(freedom_processor_state_test "{test}")
-          target_include_directories(freedom_processor_state_test PRIVATE "{root}/Source")
-          target_link_libraries(freedom_processor_state_test PRIVATE
-              {target}_SharedCode juce::juce_audio_utils juce::juce_audio_processors)
-          target_compile_features(freedom_processor_state_test PRIVATE cxx_std_17)
-          """
-          cmake.write_text(content)
-          print("Registered real processor integration test against",target+"_SharedCode")
-          PY
       - name: Configure ARM64
         shell: bash
         run: |
@@ -1219,6 +1194,31 @@ jobs:
           assert "getStateInformation" in header and "setStateInformation" in header
           PY
           echo "Native test source prepared; linking against JUCE plugin implementation follows."
+      - name: Register native processor state test with CMake
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          root=Path(os.environ["SOURCE_ROOT"])/"plugin"
+          cmake=root/"CMakeLists.txt"
+          content=cmake.read_text()
+          match=re.search(r'juce_add_plugin\s*\(\s*([^\s)]+)',content)
+          assert match,"Unable to locate JUCE plugin target"
+          target=match.group(1)
+          test=Path(os.environ["RUNNER_TEMP"])/"freedom-processor-test/main.cpp"
+          assert test.exists()
+          content += f"""
+          add_executable(freedom_processor_state_test "{test}")
+          target_include_directories(freedom_processor_state_test PRIVATE "{root}/Source")
+          target_link_libraries(freedom_processor_state_test PRIVATE
+              {target}_SharedCode juce::juce_audio_utils juce::juce_audio_processors)
+          target_compile_features(freedom_processor_state_test PRIVATE cxx_std_17)
+          """
+          cmake.write_text(content)
+          print("Registered real processor integration test against",target+"_SharedCode")
+          PY
       - name: Build and run real processor state test
         shell: bash
         run: |
