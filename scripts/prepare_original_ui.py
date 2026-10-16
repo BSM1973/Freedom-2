@@ -371,28 +371,39 @@ ui_cleanup = """
     hideBannerText('VISUAL PARAMETER PREVIEW');
     hideSafe(exactTextNode('GRAPHITE TITANIUM · EXPRESSION'));
     hideSafe(exactTextNode('PITCH REVIENT AU CENTRE AU RELÂCHEMENT'));
-    // Hide everything after the keyboard card, including MIDI PERFORMANCE.
-    // Find the smallest container owning the keyboard heading and piano keys,
-    // then hide following sibling blocks at every ancestor level up to body.
-    if(keyboardAnchor){
-      const midi=exactTextNode('MIDI PERFORMANCE');
-      if(midi){
-        let section=midi;
-        while(section.parentElement && section.parentElement!==document.body &&
-              !protectedKeyboard(section.parentElement)){
-          const parent=section.parentElement;
-          if(parent.getBoundingClientRect().width>=
-             document.documentElement.clientWidth*0.6) section=parent;
-          else section=parent;
-        }
-        // Select the highest MIDI-only subtree. Never touch its shared
-        // parent with the keyboard.
-        if(!protectedKeyboard(section)){
-          let sibling=section;
-          while(sibling){
-            const next=sibling.nextElementSibling;
-            if(!hideSafe(sibling)) break;
-            sibling=next;
+    // Remove the complete post-keyboard subtree, not just its title.
+    // Find text using DOM text nodes (works with nested headings/spans).
+    const findTextElement = phrase => {
+      const wanted=normalize(phrase);
+      const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+      let textNode;
+      while((textNode=walker.nextNode())){
+        if(normalize(textNode.nodeValue).includes(wanted))
+          return textNode.parentElement;
+      }
+      return null;
+    };
+    const keyboardNode=findTextElement('GLOBAL PLAY KEYBOARD');
+    const midiNode=findTextElement('MIDI PERFORMANCE');
+    if(keyboardNode && midiNode){
+      // Lowest common ancestor of keyboard and MIDI content.
+      let ancestor=keyboardNode;
+      while(ancestor && !ancestor.contains(midiNode)) ancestor=ancestor.parentElement;
+      if(ancestor && ancestor!==document.body && ancestor!==document.documentElement){
+        // Find the branch immediately beneath the common parent that owns MIDI.
+        let midiBranch=midiNode;
+        while(midiBranch.parentElement!==ancestor && midiBranch.parentElement)
+          midiBranch=midiBranch.parentElement;
+        let keyboardBranch=keyboardNode;
+        while(keyboardBranch.parentElement!==ancestor && keyboardBranch.parentElement)
+          keyboardBranch=keyboardBranch.parentElement;
+        if(midiBranch!==keyboardBranch &&
+           (keyboardBranch.compareDocumentPosition(midiBranch)&Node.DOCUMENT_POSITION_FOLLOWING)){
+          // MIDI and all subsequent sibling sections are below the keyboard.
+          for(let section=midiBranch;section;){
+            const next=section.nextElementSibling;
+            hide(section);
+            section=next;
           }
         }
       }
