@@ -1151,7 +1151,7 @@ jobs:
             for(int i=0;i<5;i++){
               auto* p=original.getParameters().getFirst();
               for(auto* candidate:original.getParameters())
-                if((dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)!=nullptr && dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)->paramID==ids[i]){p=candidate;break;}
+                if((dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)!=nullptr && dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)->paramID==ids[i])){p=candidate;break;}
               assert(p!=nullptr && dynamic_cast<juce::AudioProcessorParameterWithID*>(p)!=nullptr);
               auto* ranged=dynamic_cast<juce::RangedAudioParameter*>(p);
               assert(ranged!=nullptr);
@@ -1164,7 +1164,7 @@ jobs:
             for(int i=0;i<5;i++){
               juce::RangedAudioParameter* ranged=nullptr;
               for(auto* candidate:restored.getParameters())
-                if((dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)!=nullptr && dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)->paramID==ids[i])
+                if((dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)!=nullptr && dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)->paramID==ids[i]))
                   ranged=dynamic_cast<juce::RangedAudioParameter*>(candidate);
               assert(ranged!=nullptr);
               assert(std::abs(ranged->convertFrom0to1(ranged->getValue())-values[i])<0.001f);
