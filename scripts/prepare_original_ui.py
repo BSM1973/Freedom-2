@@ -298,59 +298,47 @@ ui_cleanup = """
       const toolbar=relocated.parentElement;
       if(toolbar) {toolbar.style.display='flex';toolbar.style.alignItems='center';toolbar.style.gap='10px';}
     }
-    // Remove only the redundant waveform selector and visual-only caption
-    // inside each oscillator. Keep the large primary waveform selector.
-    for(const caption of nodes().filter(el=>el.children.length===0 &&
-        normalize(el.textContent).includes('WAVEFORM MONITOR') &&
-        normalize(el.textContent).includes('VISUAL ONLY'))) {
-      const container=caption.parentElement;
-      const row=container?.previousElementSibling;
-      if(row && row.querySelectorAll('button,[role="button"]').length>=4 &&
-         row.querySelectorAll('button,[role="button"]').length<=5) hide(row);
-      else if(container) {
-        const siblings=[...container.querySelectorAll('button,[role="button"]')];
-        if(siblings.length>=4 && siblings.length<=5) siblings.forEach(hide);
-      }
-      hide(caption);
-    }
-
-
-    // Remove the SECOND, compact waveform selector row in each oscillator.
-    // Do not depend on its caption: older cleanup passes may have hidden it.
+    // Preserve the FIRST (large) waveform row of each oscillator; hide only
+    // its SECOND (small, duplicate) row. Never select rows by their width.
     const waveNames=['SINE','SAW','PULSE','TRI'];
-    const waveButtons=[...document.querySelectorAll('button,[role="button"]')]
-      .filter(el=>waveNames.includes(normalize(el.textContent)));
-    const waveRows=new Set();
-    for(const btn of waveButtons) {
+    const rows=new Set();
+    for(const btn of document.querySelectorAll('button,[role="button"]')) {
+      if(!waveNames.includes(normalize(btn.textContent))) continue;
       let parent=btn.parentElement;
-      for(let depth=0;parent && depth<4;depth++,parent=parent.parentElement) {
-        const controls=[...parent.querySelectorAll('button,[role="button"]')];
-        if(controls.length===4 &&
-           waveNames.every(name=>controls.some(el=>normalize(el.textContent)===name))) {
-          waveRows.add(parent);
+      for(let depth=0;parent && depth<5;depth++,parent=parent.parentElement) {
+        const buttons=[...parent.querySelectorAll('button,[role="button"]')];
+        if(buttons.length===4 &&
+           waveNames.every(name=>buttons.some(b=>normalize(b.textContent)===name))) {
+          rows.add(parent);
           break;
         }
       }
     }
-    // Each oscillator has two selectors: the compact redundant one is narrower.
-    const rows=[...waveRows].filter(el=>el.getBoundingClientRect().width>0);
-    if(rows.length===6) {
-      rows.sort((a,b)=>a.getBoundingClientRect().width-b.getBoundingClientRect().width);
-      rows.slice(0,3).forEach(hide);
-    } else {
-      // Fallback: within each horizontal oscillator column, keep the first
-      // selector in vertical order and remove only subsequent selector rows.
-      const groups=new Map();
-      for(const row of rows) {
-        const x=Math.round(row.getBoundingClientRect().left/80);
-        if(!groups.has(x)) groups.set(x,[]);
-        groups.get(x).push(row);
-      }
-      for(const group of groups.values()) {
-        if(group.length!==2) continue;
-        group.sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top);
-        hide(group[1]);
-      }
+    // Identify each oscillator by its heading, not by screen coordinates.
+    const oscillatorCards=[1,2,3].map(index=>{
+      const label='OSCILLATOR 0'+index;
+      const title=nodes().find(el=>el.children.length===0 && normalize(el.textContent)===label);
+      if(!title) return null;
+      let card=title.parentElement;
+      while(card && ![...rows].some(row=>card.contains(row))) card=card.parentElement;
+      // The smallest ancestor with two waveform rows is the oscillator card.
+      while(card && [...rows].filter(row=>card.contains(row)).length<2) card=card.parentElement;
+      return card;
+    });
+    for(const card of oscillatorCards) {
+      if(!card) continue;
+      const selectors=[...rows].filter(row=>card.contains(row))
+        .sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top);
+      if(selectors.length!==2) continue;
+      // First row is the main selector; second is the unwanted duplicate.
+      selectors[0].hidden=false;
+      selectors[0].style.removeProperty('display');
+      hide(selectors[1]);
+    }
+    // Remove captions associated with the duplicate rows.
+    for(const el of nodes()) {
+      if(el.children.length===0 && normalize(el.textContent).includes('WAVEFORM MONITOR') &&
+         normalize(el.textContent).includes('VISUAL ONLY')) hide(el);
     }
 
     hideButton('ACTUALISER LES ONDES');
