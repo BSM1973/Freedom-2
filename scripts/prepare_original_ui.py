@@ -335,6 +335,67 @@ ui_cleanup = """
     }
 
 
+
+    // Bottom-of-page visual cleanup. Only hide tightly bounded elements;
+    // never remove a parent that owns the keyboard or the application root.
+    const leafContaining = phrase => nodes().find(el =>
+      el.children.length===0 && normalize(el.textContent).includes(phrase));
+    const hideSmallStrip = phrase => {
+      const leaf=leafContaining(phrase);
+      if(!leaf) return;
+      let candidate=leaf;
+      for(let depth=0;depth<5 && candidate.parentElement;depth++){
+        const parent=candidate.parentElement;
+        const rect=parent.getBoundingClientRect();
+        const content=normalize(parent.textContent);
+        if(content.includes('GLOBAL PLAY KEYBOARD') ||
+           content.includes('OSCILLATOR 01') ||
+           content.includes('MIDI PERFORMANCE')) break;
+        if(rect.width>document.documentElement.clientWidth*0.65 &&
+           rect.height>=16 && rect.height<=85){
+          hide(parent);
+          return;
+        }
+        candidate=parent;
+      }
+      hide(leaf);
+    };
+    hideSmallStrip('DESIGN SYSTEM 1.0');
+    hideSmallStrip('VISUAL PARAMETER PREVIEW');
+    for(const phrase of ['GRAPHITE TITANIUM · EXPRESSION',
+                         'PITCH REVIENT AU CENTRE AU RELÂCHEMENT']){
+      hide(leafContaining(phrase));
+    }
+    // Hide the diagnostics section starting with "MIDI PERFORMANCE",
+    // plus its following peer sections. Do not traverse into a shared
+    // ancestor that also contains the global keyboard.
+    const midi=leafContaining('MIDI PERFORMANCE · LIBERTY BRIDGE');
+    if(midi){
+      let panel=midi;
+      for(let depth=0;depth<7 && panel.parentElement;depth++){
+        const parent=panel.parentElement;
+        const txt=normalize(parent.textContent);
+        if(txt.includes('GLOBAL PLAY KEYBOARD') || txt.includes('OSCILLATOR 01')) break;
+        const rect=parent.getBoundingClientRect();
+        if(rect.width>document.documentElement.clientWidth*0.65 &&
+           rect.height>=100){
+          panel=parent;
+          break;
+        }
+        panel=parent;
+      }
+      // Never hide the document body or a container that owns the keyboard.
+      if(panel!==document.body && !normalize(panel.textContent).includes('GLOBAL PLAY KEYBOARD')){
+        let peer=panel;
+        while(peer && peer.parentElement && peer!==document.body){
+          const next=peer.nextElementSibling;
+          if(normalize(peer.textContent).includes('GLOBAL PLAY KEYBOARD')) break;
+          hide(peer);
+          peer=next;
+        }
+      }
+    }
+
     hideButton('ACTUALISER LES ONDES');
     // Hide diagnostic copy only, without hiding its containing toolbar.
     for (const el of nodes()) {
