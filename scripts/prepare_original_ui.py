@@ -440,9 +440,56 @@ ui_cleanup = """
 })();
 </script>
 """
+# Synchronize the rest of the native engine, including preset recalls.
+# The existing OSC and filter bridges retain their specialized mappings.
+full_bridge = """
+<script id="liberty-native-full-parameter-bridge">
+(() => {
+  const mapping = {
+    Amp_Attack:'attack', Amp_Decay:'decay', Amp_Sustain:'sustain', Amp_Release:'release',
+    Master_Volume:'master', Master_Gain:'master', Master_Level:'master',
+    Filter_Cutoff:'cutoff', Filter_Resonance:'resonance', Filter_Type:'filterMode',
+    Filter_Envelope_Attack:'filterEnvAttack', Filter_Envelope_Decay:'filterEnvDecay',
+    Filter_Envelope_Sustain:'filterEnvSustain', Filter_Envelope_Release:'filterEnvRelease',
+    Filter_Envelope_Amount:'filterEnvAmount',
+    Sync_2:'sync2', Sync_3:'sync3',
+    Chorus_On:'chorusOn', Chorus_Rate:'chorusRate', Chorus_Mix:'chorusMix',
+    Drive_On:'driveOn', Drive_Amount:'driveAmount', Drive_Tone:'driveTone', Drive_Mix:'driveMix'
+  };
+  for(let i=1;i<=3;i++) {
+    for(const [ui,native] of Object.entries({Rate:'Rate',Depth:'Depth',Wave:'Wave'}))
+      mapping['LFO_'+i+'_'+ui]='lfo'+i+native;
+  }
+  for(let i=1;i<=8;i++) {
+    mapping['Matrix_'+i+'_Source']='route'+i+'Source';
+    mapping['Matrix_'+i+'_Destination']='route'+i+'Dest';
+    mapping['Matrix_'+i+'_Amount']='route'+i+'Amount';
+  }
+  let last = new Map(), pending = false;
+  async function push() {
+    if(pending)return;
+    const ui=window.LibertyFreedomUI;
+    const set=window.__JUCE__?.backend?.getNativeFunction?.('freedomSetParameter');
+    if(!ui?.getParameters||!set)return;
+    pending=true;
+    try {
+      const values=ui.getParameters();
+      for(const [key,id] of Object.entries(mapping)) {
+        if(!(key in values))continue;
+        const v=Number(values[key]);
+        if(!Number.isFinite(v)||last.get(key)===v)continue;
+        if(await set(id,v))last.set(key,v);
+      }
+    } catch(e) { console.warn('Freedom 2 parameter bridge:',e); }
+    finally {pending=false;}
+  }
+  setInterval(push,100);
+})();
+</script>
+"""
 if "</body>" not in source_html:
     raise RuntimeError("Original HTML has no body closing tag")
-(assets/"index.html").write_text(source_html.replace("</body>",ui_cleanup+bridge+"</body>",1))
+(assets/"index.html").write_text(source_html.replace("</body>",ui_cleanup+bridge+full_bridge+"</body>",1))
 
 s=cmake.read_text()
 s=s.replace("JUCE_WEB_BROWSER=0", "JUCE_WEB_BROWSER=1")
@@ -581,6 +628,17 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
           if (!std::isfinite(value)) {complete(false);return;}
           if (id=="filterMode" && (value<0.0f || value>5.0f
               || std::floor(value)!=value)) {complete(false);return;}
+          parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+          complete(true);
+        })
+      .withNativeFunction("freedomSetParameter",
+        [&p](const juce::Array<juce::var>& args,
+             juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+          if(args.size()!=2 || !args[0].isString()) {complete(false);return;}
+          auto* parameter=p.getValueTreeState().getParameter(args[0].toString());
+          if(parameter==nullptr) {complete(false);return;}
+          const float value=static_cast<float>(static_cast<double>(args[1]));
+          if(!std::isfinite(value)) {complete(false);return;}
           parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
           complete(true);
         })
