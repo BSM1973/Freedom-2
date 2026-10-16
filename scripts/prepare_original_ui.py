@@ -205,6 +205,15 @@ ui_cleanup = """
     hideButton('EXPORT JSON');
     hideButton('IMPORT JSON');
     hideButton('PARAM API');
+    hideButton('ACTUALISER LES ONDES');
+    // Hide diagnostic copy only, without hiding its containing toolbar.
+    for (const el of nodes()) {
+      if (el.children.length !== 0) continue;
+      const label=normalize(el.textContent);
+      if (label === 'DEMO / NO AUDIO' ||
+          (label.includes('PARAMÈTRES CARTOGRAPHIÉS') &&
+           label.includes('PRESETS DE RÉFÉRENCE'))) hide(el);
+    }
     const history=nodes().find(el => el.children.length===0 &&
       /^HISTORIQUE\s+\d+\s*\/\s*\d+$/i.test((el.textContent||'').trim()));
     hide(history);
