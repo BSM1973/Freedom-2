@@ -1189,8 +1189,7 @@ jobs:
             }
             assert(std::isfinite(peak) && peak>0.00001);
             instrument.releaseResources();
-            std::cout<<"Freedom2 native host MIDI -> stereo audio peak: "<<peak<<"\
-";
+            std::cout<<"Freedom2 native host MIDI -> stereo audio peak: "<<peak<<std::endl;
             std::cout<<"Real Freedom2Processor ADSR host state roundtrip passed\n";
           }
           CPP
