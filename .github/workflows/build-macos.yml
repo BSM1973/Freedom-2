@@ -1025,6 +1025,28 @@ jobs:
             for(int i=0;i<5;i++)
               assert(std::abs(static_cast<float>(hostTree.getChild(i).getProperty("value"))
                      -replacement[i])<0.0001f);
+            // A matching root with missing ADSR entries must not be mistaken
+            // for a complete five-parameter factory state in this test.
+            juce::ValueTree incomplete("PARAMETERS");
+            for(int i=0;i<4;i++){
+              juce::ValueTree param("PARAM");
+              param.setProperty("id",ids[i],nullptr);
+              param.setProperty("value",replacement[i],nullptr);
+              incomplete.addChild(param,-1,nullptr);
+            }
+            auto incompleteXml=incomplete.createXml();
+            assert(incompleteXml!=nullptr);
+            juce::MemoryBlock incompleteChunk;
+            juce::AudioProcessor::copyXmlToBinary(*incompleteXml,incompleteChunk);
+            auto incompleteDecoded=juce::AudioProcessor::getXmlFromBinary(
+                incompleteChunk.getData(),static_cast<int>(incompleteChunk.getSize()));
+            assert(incompleteDecoded!=nullptr);
+            auto incompleteTree=juce::ValueTree::fromXml(*incompleteDecoded);
+            assert(incompleteTree.getNumChildren()==4);
+            bool hasAmount=false;
+            for(int i=0;i<incompleteTree.getNumChildren();i++)
+              hasAmount |= incompleteTree.getChild(i).getProperty("id").toString()==ids[4];
+            assert(!hasAmount);
             // Exercise JUCE host chunks with multiple realistic ADSR snapshots.
             for(int snapshot=0;snapshot<32;snapshot++){
               juce::ValueTree variation("PARAMETERS");
