@@ -1206,6 +1206,7 @@ jobs:
               "$<TARGET_PROPERTY:{target},JUCE_GENERATED_SOURCES_DIRECTORY>"
               "$<TARGET_PROPERTY:{target},INCLUDE_DIRECTORIES>")
           target_compile_features(freedom_processor_state_test PRIVATE cxx_std_17)
+          target_compile_options(freedom_processor_state_test PRIVATE -UNDEBUG)
           """
           cmake.write_text(content)
           print("Registered real processor integration test against",target)
