@@ -1171,7 +1171,27 @@ jobs:
               assert(ranged!=nullptr);
               assert(std::abs(ranged->convertFrom0to1(ranged->getValue())-values[i])<0.001f);
             }
-            // Regression: the plugin must generate nonzero stereo audio from\n            // host MIDI without opening its WebView or pressing Start Audio.\n            Freedom2Processor instrument;\n            instrument.prepareToPlay(48000.0,512);\n            juce::AudioBuffer<float> audio(2,512);\n            juce::MidiBuffer notes;\n            notes.addEvent(juce::MidiMessage::noteOn(1,60,(juce::uint8)110),0);\n            double peak=0.0;\n            for(int block=0;block<12;++block){\n              audio.clear();\n              instrument.processBlock(audio,notes);\n              for(int ch=0;ch<2;++ch)\n                for(int n=0;n<audio.getNumSamples();++n)\n                  peak=std::max(peak,(double)std::abs(audio.getSample(ch,n)));\n              notes.clear();\n            }\n            assert(std::isfinite(peak) && peak>0.00001);\n            instrument.releaseResources();\n            std::cout<<"Freedom2 native host MIDI -> stereo audio peak: "<<peak<<"\\n";\n            std::cout<<"Real Freedom2Processor ADSR host state roundtrip passed\n";
+            // Regression: the plugin must generate nonzero stereo audio from
+            // host MIDI without opening its WebView or pressing Start Audio.
+            Freedom2Processor instrument;
+            instrument.prepareToPlay(48000.0,512);
+            juce::AudioBuffer<float> audio(2,512);
+            juce::MidiBuffer notes;
+            notes.addEvent(juce::MidiMessage::noteOn(1,60,(juce::uint8)110),0);
+            double peak=0.0;
+            for(int block=0;block<12;++block){
+              audio.clear();
+              instrument.processBlock(audio,notes);
+              for(int ch=0;ch<2;++ch)
+                for(int n=0;n<audio.getNumSamples();++n)
+                  peak=std::max(peak,(double)std::abs(audio.getSample(ch,n)));
+              notes.clear();
+            }
+            assert(std::isfinite(peak) && peak>0.00001);
+            instrument.releaseResources();
+            std::cout<<"Freedom2 native host MIDI -> stereo audio peak: "<<peak<<"\
+";
+            std::cout<<"Real Freedom2Processor ADSR host state roundtrip passed\n";
           }
           CPP
           python3 - <<'PY'
