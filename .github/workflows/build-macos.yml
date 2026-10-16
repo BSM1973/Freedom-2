@@ -997,7 +997,7 @@ jobs:
               return 2;
             }
             // Critical audible-regression test: parameters MUST alter rendered audio.
-            auto renderPatch=[&](int wave,float cutoff,float level){
+            auto renderPatch=[&](int wave,float cutoff,float level,int oscillator=1){
               Freedom2Processor synth;
               synth.prepareToPlay(48000.0,512);
               auto setPhysical=[&](const char* id,float value){
@@ -1006,9 +1006,14 @@ jobs:
                 p->setValueNotifyingHost(p->convertTo0to1(value));
               };
               setPhysical("osc1Wave",(float)wave);
-              setPhysical("osc1Level",level);
-              setPhysical("osc2Level",0.0f);
-              setPhysical("osc3Level",0.0f);
+              setPhysical("osc1Level",oscillator==1?level:0.0f);
+              setPhysical("osc2Level",oscillator==2?level:0.0f);
+              setPhysical("osc3Level",oscillator==3?level:0.0f);
+              setPhysical("osc1On",oscillator==1?1.0f:0.0f);
+              setPhysical("osc2On",oscillator==2?1.0f:0.0f);
+              setPhysical("osc3On",oscillator==3?1.0f:0.0f);
+              setPhysical("osc2Wave",(float)wave);
+              setPhysical("osc3Wave",(float)wave);
               setPhysical("cutoff",cutoff);
               juce::AudioBuffer<float> out(2,512);
               juce::MidiBuffer midi;
@@ -1030,6 +1035,20 @@ jobs:
               for(size_t i=0;i<a.size();++i)sum+=std::abs((double)a[i]-b[i]);
               return sum/a.size();
             };
+            const auto osc2=renderPatch(0,14000.f,0.7f,2);
+            const auto osc3=renderPatch(0,14000.f,0.7f,3);
+            const auto osc2Square=renderPatch(1,14000.f,0.7f,2);
+            const auto osc3Square=renderPatch(1,14000.f,0.7f,3);
+            auto rms=[](const auto& v){double sum=0;for(float x:v)sum+=double(x)*x;return std::sqrt(sum/v.size());};
+            const double osc2Rms=rms(osc2),osc3Rms=rms(osc3);
+            const double osc2WaveDiff=difference(osc2,osc2Square);
+            const double osc3WaveDiff=difference(osc3,osc3Square);
+            std::cout<<"OSCILLATOR ISOLATION osc2RMS="<<osc2Rms<<" osc3RMS="<<osc3Rms
+                     <<" osc2WaveDiff="<<osc2WaveDiff<<" osc3WaveDiff="<<osc3WaveDiff<<std::endl;
+            if(osc2Rms<0.0001||osc3Rms<0.0001||osc2WaveDiff<0.0001||osc3WaveDiff<0.0001){
+              std::cerr<<"FAIL: isolated OSC2/OSC3 audio or waveform response"<<std::endl;
+              return 4;
+            }
             const double waveDiff=difference(saw,square);
             const double levelDiff=difference(saw,muted);
             const double filterDiff=difference(saw,filtered);
