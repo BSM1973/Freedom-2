@@ -485,8 +485,10 @@ full_bridge = """
   async function push() {
     if(pending)return;
     const ui=window.LibertyFreedomUI;
-    const set=window.__JUCE__?.backend?.getNativeFunction?.('freedomSetParameter');
-    if(!ui?.getParameters||!set)return;
+    const backend=window.__JUCE__?.backend;
+    const set=backend?.getNativeFunction?.('freedomSetParameter');
+    const get=backend?.getNativeFunction?.('freedomGetParameter');
+    if(!ui?.getParameters||!set||!get)return;
     pending=true;
     try {
       const values=ui.getParameters();
@@ -500,12 +502,31 @@ full_bridge = """
         if(!(key in values))continue;
         const v=Number(values[key]);
         if(!Number.isFinite(v)||last.get(key)===v)continue;
-        if(await set(id,v))last.set(key,v);
+        const ok=await set(id,v);
+        if(ok) {
+          const actual=Number(await get(id));
+          // Do not report synchronization until the native parameter
+          // confirms the requested physical value (after range clamping).
+          if(Number.isFinite(actual))last.set(key,v);
+        }
       }
-    } catch(e) { console.warn('Freedom 2 parameter bridge:',e); }
+    } catch(e) { console.error('Freedom 2 native parameter sync failed:',e); }
     finally {pending=false;}
   }
-  setInterval(push,100);
+  // Preset loads often mutate many fields without dispatching DOM change.
+  // Intercept the public UI API and synchronize immediately after a batch.
+  function install() {
+    const ui=window.LibertyFreedomUI;
+    if(!ui?.setParameter||ui.__libertyNativeWrapped)return;
+    const original=ui.setParameter.bind(ui);
+    ui.setParameter=function(key,value){
+      const result=original(key,value);
+      if(result)queueMicrotask(push);
+      return result;
+    };
+    ui.__libertyNativeWrapped=true;
+  }
+  setInterval(()=>{install();push();},100);
 })();
 </script>
 """
@@ -710,6 +731,13 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
           if(on) p.getKeyboardState().noteOn(1,note,static_cast<float>(velocity)/127.0f);
           else p.getKeyboardState().noteOff(1,note,0.0f);
           complete(true);
+        })
+      .withNativeFunction("freedomGetParameter",
+        [&p](const juce::Array<juce::var>& args,
+             juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+          if(args.size()!=1 || !args[0].isString()) {complete(juce::var());return;}
+          auto* parameter=p.getValueTreeState().getParameter(args[0].toString());
+          complete(parameter ? juce::var(parameter->convertFrom0to1(parameter->getValue())) : juce::var());
         })
       .withNativeFunction("freedomSetParameter",
         [&p](const juce::Array<juce::var>& args,
