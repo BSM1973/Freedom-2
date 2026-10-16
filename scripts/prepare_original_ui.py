@@ -336,60 +336,67 @@ ui_cleanup = """
 
 
 
-    // Scoped lower-UI cleanup. Find text even when split across nested spans.
-    // Never hide body, the app root, or an ancestor of the global keyboard.
-    const textMatch = phrase => {
+    // Lower-page cleanup: anchored to actual on-screen geometry and the
+    // GLOBAL PLAY KEYBOARD, never to assumed component/class names.
+    const normalizeText = el => normalize(el?.textContent || '');
+    const exactTextNode = phrase => {
       const wanted=normalize(phrase);
-      const matches=[...document.querySelectorAll('div,span,section,header,footer,p,small,strong,label')].filter(el=>
-        normalize(el.textContent).includes(wanted) &&
-        ![...el.children].some(child=>normalize(child.textContent).includes(wanted)));
-      return matches[0] || null;
+      return [...document.querySelectorAll('div,span,p,small,strong,header,footer,section,label')]
+        .find(el=>normalizeText(el).includes(wanted) &&
+          ![...el.children].some(child=>normalizeText(child).includes(wanted)));
     };
-    const keyboardTitle=textMatch('GLOBAL PLAY KEYBOARD');
-    const safeHide=el=>{
-      if(!el || el===document.body || el===document.documentElement) return false;
-      if(keyboardTitle && el.contains(keyboardTitle)) return false;
+    const keyboardAnchor=exactTextNode('GLOBAL PLAY KEYBOARD');
+    const keyboardTop=keyboardAnchor?.getBoundingClientRect().top ?? Infinity;
+    const protectedKeyboard = el => keyboardAnchor && el.contains(keyboardAnchor);
+    const hideSafe=el=>{
+      if(!el || el===document.body || el===document.documentElement ||
+         protectedKeyboard(el)) return false;
       hide(el);
       return true;
     };
-    const hideBanner=phrase=>{
-      const leaf=textMatch(phrase);
+    const hideBannerText=phrase=>{
+      const leaf=exactTextNode(phrase);
       if(!leaf) return;
-      let chosen=null;
+      let best=leaf;
       for(let el=leaf;el && el!==document.body;el=el.parentElement){
+        if(protectedKeyboard(el)) break;
         const rect=el.getBoundingClientRect();
-        if(keyboardTitle && el.contains(keyboardTitle)) break;
-        if(rect.width>=document.documentElement.clientWidth*0.65 &&
-           rect.height>=18 && rect.height<=90) chosen=el;
+        if(rect.width>=document.documentElement.clientWidth*0.7 &&
+           rect.height>12 && rect.height<110 &&
+           rect.top<keyboardTop) best=el;
       }
-      safeHide(chosen || leaf);
+      hideSafe(best);
     };
-    hideBanner('DESIGN SYSTEM 1.0');
-    hideBanner('VISUAL PARAMETER PREVIEW');
-    safeHide(textMatch('GRAPHITE TITANIUM · EXPRESSION'));
-    safeHide(textMatch('PITCH REVIENT AU CENTRE AU RELÂCHEMENT'));
-    // Remove the entire MIDI PERFORMANCE panel and following panels.
-    // Select the largest MIDI-only section immediately below the keyboard,
-    // without ever ascending into a common parent containing the keyboard.
-    const midiTitle=textMatch('MIDI PERFORMANCE');
-    if(midiTitle && keyboardTitle){
-      let panel=midiTitle;
-      for(let el=midiTitle;el && el!==document.body;el=el.parentElement){
-        if(el.contains(keyboardTitle)) break;
-        const rect=el.getBoundingClientRect();
-        if(rect.width>=document.documentElement.clientWidth*0.65 &&
-           rect.height>=85) panel=el;
-      }
-      if(panel!==midiTitle){
-        let sibling=panel;
-        while(sibling){
-          const next=sibling.nextElementSibling;
-          if(!safeHide(sibling)) break;
-          sibling=next;
+    hideBannerText('DESIGN SYSTEM 1.0');
+    hideBannerText('VISUAL PARAMETER PREVIEW');
+    hideSafe(exactTextNode('GRAPHITE TITANIUM · EXPRESSION'));
+    hideSafe(exactTextNode('PITCH REVIENT AU CENTRE AU RELÂCHEMENT'));
+    // Hide everything after the keyboard card, including MIDI PERFORMANCE.
+    // Find the smallest container owning the keyboard heading and piano keys,
+    // then hide following sibling blocks at every ancestor level up to body.
+    if(keyboardAnchor){
+      const midi=exactTextNode('MIDI PERFORMANCE');
+      if(midi){
+        let section=midi;
+        while(section.parentElement && section.parentElement!==document.body &&
+              !protectedKeyboard(section.parentElement)){
+          const parent=section.parentElement;
+          if(parent.getBoundingClientRect().width>=
+             document.documentElement.clientWidth*0.6) section=parent;
+          else section=parent;
+        }
+        // Select the highest MIDI-only subtree. Never touch its shared
+        // parent with the keyboard.
+        if(!protectedKeyboard(section)){
+          let sibling=section;
+          while(sibling){
+            const next=sibling.nextElementSibling;
+            if(!hideSafe(sibling)) break;
+            sibling=next;
+          }
         }
       }
     }
-
     hideButton('ACTUALISER LES ONDES');
     // Hide diagnostic copy only, without hiding its containing toolbar.
     for (const el of nodes()) {
@@ -413,6 +420,11 @@ ui_cleanup = """
   if (document.readyState==='loading') document.addEventListener('DOMContentLoaded',cleanup,{once:true});
   else cleanup();
   window.addEventListener('load',cleanup,{once:true});
+  // React/embedded UI may paint the bottom panels after DOMContentLoaded.
+  // Bounded rechecks (no MutationObserver and no infinite render loop).
+  [150,650,1800].forEach(delay=>setTimeout(()=>{
+    try { cleanup(); } catch(error) { console.warn('Liberty UI cleanup:',error); }
+  },delay));
 
 })();
 </script>
