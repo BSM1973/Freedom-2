@@ -33,143 +33,7 @@ if 'id("On")' not in native_params or 'id("Wave")' not in native_params or 'addF
 print("Oscillator HTML controls and native parameter family identified (bridge pending).")
 # Nonvisual OSC1 bridge. It observes the existing UI state without altering
 # controls, layout, styles, or the original HTML source archive.
-bridge = """
-<script id="liberty-native-oscillators-bridge">
-(() => {
-  const fields = ['On','Wave','Volume','Octave','Semitone','Fine'];
-  let lastUI = new Map();
-  let lastNative = new Map();
-  let initialized = false;
-  let busy = false;
-  async function sync() {
-    if (busy) return;
-    const backend = window.__JUCE__?.backend;
-    const ui = window.LibertyFreedomUI;
-    const get = backend?.getNativeFunction?.('freedomGetOscillators');
-    const set = backend?.getNativeFunction?.('freedomSetOscillator');
-    if (!get || !set || !ui?.getParameters || !ui?.setParameter) return;
-    busy = true;
-    try {
-      const native = await get();
-      if (!Array.isArray(native) || native.length !== 18) return;
-      const state = ui.getParameters();
-      for (let osc = 1; osc <= 3; osc++) {
-        for (let i = 0; i < fields.length; i++) {
-          const key = 'Osc_' + osc + '_' + fields[i];
-          const current = Number(state[key]);
-          const host = Number(native[(osc-1)*fields.length+i]);
-          if (!Number.isFinite(current) || !Number.isFinite(host)) continue;
-          const previousUI = lastUI.get(key);
-          const previousNative = lastNative.get(key);
-          const uiChanged = previousUI !== undefined
-            && Math.abs(current-previousUI)>0.00001;
-          const hostChanged = previousNative !== undefined
-            && Math.abs(host-previousNative)>0.00001;
-          // Host automation wins simultaneous edits.
-          if (!initialized || hostChanged || !uiChanged) {
-            if (Math.abs(current-host)>0.00001) ui.setParameter(key,host);
-            lastUI.set(key,host);
-            lastNative.set(key,host);
-          } else if (Math.abs(current-host)>0.00001) {
-            const ok = await set(osc,fields[i],current);
-            if (ok) {
-              lastUI.set(key,current);
-              lastNative.set(key,current);
-            }
-          } else {
-            lastUI.set(key,current);
-            lastNative.set(key,host);
-          }
-        }
-      }
-      initialized = true;
-    } catch (_) {
-      // Keep the original UI usable if a host does not expose native functions.
-    } finally { busy = false; }
-  }
-  setInterval(sync, 150);
-  // Filter controls: preserve original HTML and synchronize existing
-  // native cutoff/resonance values without introducing visual elements.
-  const filterKeys = [['Filter_Cutoff','cutoff'],['Filter_Resonance','resonance'],['Filter_Type','filterMode']];
-  let filterReady = false;
-  let filterBusy = false;
-  const filterUI = new Map(), filterHost = new Map();
-  async function syncFilter() {
-    if (filterBusy) return;
-    const ui = window.LibertyFreedomUI;
-    const backend = window.__JUCE__?.backend;
-    const get = backend?.getNativeFunction?.('freedomGetFilter');
-    const set = backend?.getNativeFunction?.('freedomSetFilter');
-    if (!get || !set || !ui?.getParameters || !ui?.setParameter) return;
-    filterBusy = true;
-    try {
-      const native = await get();
-      if (!Array.isArray(native) || native.length !== 3) return;
-      const state = ui.getParameters();
-      for (let i=0;i<filterKeys.length;i++) {
-        const [key,id] = filterKeys[i];
-        const current = Number(state[key]), host = Number(native[i]);
-        if (!Number.isFinite(current) || !Number.isFinite(host)) continue;
-        const uiChanged = filterUI.has(key) && Math.abs(current-filterUI.get(key))>0.00001;
-        const hostChanged = filterHost.has(key) && Math.abs(host-filterHost.get(key))>0.00001;
-        if (!filterReady || hostChanged || !uiChanged) {
-          if (Math.abs(current-host)>0.00001) ui.setParameter(key,host);
-          filterUI.set(key,host);
-          filterHost.set(key,host);
-        } else if (Math.abs(current-host)>0.00001) {
-          if (await set(id,current)) {filterUI.set(key,current);filterHost.set(key,current);}
-        } else {filterUI.set(key,current);filterHost.set(key,host);}
-      }
-      filterReady=true;
-    } catch (_) {
-      // Keep the original UI operational if native integration is unavailable.
-    } finally {filterBusy=false;}
-  }
-  setInterval(syncFilter,150);
-  // Dedicated filter ADSR bridge; original controls and CSS remain untouched.
-  const envKeys = [
-    ['Filter_Envelope_Attack','filterEnvAttack'],
-    ['Filter_Envelope_Decay','filterEnvDecay'],
-    ['Filter_Envelope_Sustain','filterEnvSustain'],
-    ['Filter_Envelope_Release','filterEnvRelease'],
-    ['Filter_Envelope_Amount','filterEnvAmount']
-  ];
-  const envUI = new Map(), envHost = new Map();
-  let envReady=false, envBusy=false;
-  async function syncFilterEnvelope() {
-    if(envBusy)return;
-    const ui=window.LibertyFreedomUI;
-    const backend=window.__JUCE__?.backend;
-    const get=backend?.getNativeFunction?.('freedomGetFilterEnvelope');
-    const set=backend?.getNativeFunction?.('freedomSetFilterEnvelope');
-    if(!get||!set||!ui?.getParameters||!ui?.setParameter)return;
-    envBusy=true;
-    try {
-      const values=await get();
-      if(!Array.isArray(values)||values.length!==envKeys.length)return;
-      const state=ui.getParameters();
-      for(let i=0;i<envKeys.length;i++){
-        const [key,id]=envKeys[i];
-        const current=Number(state[key]),host=Number(values[i]);
-        if(!Number.isFinite(current)||!Number.isFinite(host))continue;
-        const uiChanged=envUI.has(key)&&Math.abs(current-envUI.get(key))>0.00001;
-        const hostChanged=envHost.has(key)&&Math.abs(host-envHost.get(key))>0.00001;
-        if(!envReady||hostChanged||!uiChanged){
-          if(Math.abs(current-host)>0.00001)ui.setParameter(key,host);
-          envUI.set(key,host);envHost.set(key,host);
-        }else if(Math.abs(current-host)>0.00001){
-          if(await set(id,current)){envUI.set(key,current);envHost.set(key,current);}
-        }else{envUI.set(key,current);envHost.set(key,host);}
-      }
-      envReady=true;
-    }catch(_){/* Native bridge optional in browser preview. */}
-    finally{envBusy=false;}
-  }
-  setInterval(syncFilterEnvelope,150);
-})();
-</script>
-"""
-# Visual-only cleanup requested for Freedom 2. Keep native DSP and preset logic intact.
+bridge = ""  # Legacy bidirectional polling disabled: it overwrote preset values with host defaults.\n# Visual-only cleanup requested for Freedom 2. Keep native DSP and preset logic intact.
 ui_cleanup = """
 <style id="liberty-ui-cleanup-style">
 /* Cleanup-only styling: the oscillator and preset layouts remain untouched. */
@@ -455,6 +319,12 @@ full_bridge = """
     Global_Master_Volume:'master', Global_Volume:'master',
     Amp_Attack:'attack', Amp_Decay:'decay', Amp_Sustain:'sustain', Amp_Release:'release',
     Master_Volume:'master', Master_Gain:'master', Master_Level:'master',
+    Osc_1_On:'osc1On', Osc_1_Wave:'osc1Wave', Osc_1_Volume:'osc1Level',
+    Osc_1_Octave:'osc1Octave', Osc_1_Semitone:'osc1Semitone', Osc_1_Fine:'osc1Fine',
+    Osc_2_On:'osc2On', Osc_2_Wave:'osc2Wave', Osc_2_Volume:'osc2Level',
+    Osc_2_Octave:'osc2Octave', Osc_2_Semitone:'osc2Semitone', Osc_2_Fine:'osc2Fine',
+    Osc_3_On:'osc3On', Osc_3_Wave:'osc3Wave', Osc_3_Volume:'osc3Level',
+    Osc_3_Octave:'osc3Octave', Osc_3_Semitone:'osc3Semitone', Osc_3_Fine:'osc3Fine',
     Filter_Cutoff:'cutoff', Filter_Resonance:'resonance', Filter_Type:'filterMode',
     Filter_Envelope_Attack:'filterEnvAttack', Filter_Envelope_Decay:'filterEnvDecay',
     Filter_Envelope_Sustain:'filterEnvSustain', Filter_Envelope_Release:'filterEnvRelease',
