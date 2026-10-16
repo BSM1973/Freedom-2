@@ -314,6 +314,45 @@ ui_cleanup = """
       hide(caption);
     }
 
+
+    // Remove the SECOND, compact waveform selector row in each oscillator.
+    // Do not depend on its caption: older cleanup passes may have hidden it.
+    const waveNames=['SINE','SAW','PULSE','TRI'];
+    const waveButtons=[...document.querySelectorAll('button,[role="button"]')]
+      .filter(el=>waveNames.includes(normalize(el.textContent)));
+    const waveRows=new Set();
+    for(const btn of waveButtons) {
+      let parent=btn.parentElement;
+      for(let depth=0;parent && depth<4;depth++,parent=parent.parentElement) {
+        const controls=[...parent.querySelectorAll('button,[role="button"]')];
+        if(controls.length===4 &&
+           waveNames.every(name=>controls.some(el=>normalize(el.textContent)===name))) {
+          waveRows.add(parent);
+          break;
+        }
+      }
+    }
+    // Each oscillator has two selectors: the compact redundant one is narrower.
+    const rows=[...waveRows].filter(el=>el.getBoundingClientRect().width>0);
+    if(rows.length===6) {
+      rows.sort((a,b)=>a.getBoundingClientRect().width-b.getBoundingClientRect().width);
+      rows.slice(0,3).forEach(hide);
+    } else {
+      // Fallback: within each horizontal oscillator column, keep the first
+      // selector in vertical order and remove only subsequent selector rows.
+      const groups=new Map();
+      for(const row of rows) {
+        const x=Math.round(row.getBoundingClientRect().left/80);
+        if(!groups.has(x)) groups.set(x,[]);
+        groups.get(x).push(row);
+      }
+      for(const group of groups.values()) {
+        if(group.length!==2) continue;
+        group.sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top);
+        hide(group[1]);
+      }
+    }
+
     hideButton('ACTUALISER LES ONDES');
     // Hide diagnostic copy only, without hiding its containing toolbar.
     for (const el of nodes()) {
