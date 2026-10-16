@@ -259,6 +259,61 @@ ui_cleanup = """
       }
     }
 
+
+    // The density control is not part of the new compact signal monitor.
+    for(const button of document.querySelectorAll('button,[role="button"]')) {
+      if(normalize(button.textContent).startsWith('DENSITÉ')) hide(button);
+    }
+    // Restore the *live* meter DOM from the hidden original signal strip.
+    const relocated=document.getElementById('liberty-relocated-signal');
+    if(relocated && !relocated.querySelector('[data-liberty-live-meter]')) {
+      const oldLabel=nodes().find(el=>el.children.length===0 &&
+        normalize(el.textContent)==='LIBERTY · SIGNAL MONITOR' && el!==relocated);
+      const oldRow=oldLabel?.parentElement?.parentElement;
+      if(oldRow) {
+        const candidates=[...oldRow.querySelectorAll('div,span')].filter(el=>{
+          const children=[...el.children];
+          if(children.length<8 || children.length>40) return false;
+          if(children.some(c=>c.matches('button,input,select'))) return false;
+          return children.every(c=>c.children.length<=1);
+        });
+        const meter=candidates.sort((a,b)=>{
+          const score=el=>/meter|level|led|bar|signal|vu/i.test(String(el.className))?1:0;
+          return score(b)-score(a);
+        })[0];
+        if(meter) {
+          meter.dataset.libertyLiveMeter='true';
+          meter.style.setProperty('display','inline-flex','important');
+          meter.style.alignItems='center';
+          meter.style.flexShrink='0';
+          relocated.appendChild(meter);
+        }
+      }
+      relocated.style.display='inline-flex';
+      relocated.style.alignItems='center';
+      relocated.style.gap='12px';
+      relocated.style.whiteSpace='nowrap';
+      relocated.style.flexShrink='0';
+      // Allow the parameter search and adjacent actions to shift right.
+      const toolbar=relocated.parentElement;
+      if(toolbar) {toolbar.style.display='flex';toolbar.style.alignItems='center';toolbar.style.gap='10px';}
+    }
+    // Remove only the redundant waveform selector and visual-only caption
+    // inside each oscillator. Keep the large primary waveform selector.
+    for(const caption of nodes().filter(el=>el.children.length===0 &&
+        normalize(el.textContent).includes('WAVEFORM MONITOR') &&
+        normalize(el.textContent).includes('VISUAL ONLY'))) {
+      const container=caption.parentElement;
+      const row=container?.previousElementSibling;
+      if(row && row.querySelectorAll('button,[role="button"]').length>=4 &&
+         row.querySelectorAll('button,[role="button"]').length<=5) hide(row);
+      else if(container) {
+        const siblings=[...container.querySelectorAll('button,[role="button"]')];
+        if(siblings.length>=4 && siblings.length<=5) siblings.forEach(hide);
+      }
+      hide(caption);
+    }
+
     hideButton('ACTUALISER LES ONDES');
     // Hide diagnostic copy only, without hiding its containing toolbar.
     for (const el of nodes()) {
