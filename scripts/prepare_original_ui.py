@@ -563,6 +563,11 @@ if "getValueTreeState()" not in header:
     header=header.replace("public:", "public:\n  juce::AudioProcessorValueTreeState& getValueTreeState() noexcept { return apvts; }",1)
     processor_h.write_text(header)
 
+if "getKeyboardState()" not in header:
+    header=processor_h.read_text()
+    header=header.replace("public:", "public:\\n  juce::MidiKeyboardState& getKeyboardState() noexcept { return keyboardState; }".replace("\\n","\\n"),1)
+    processor_h.write_text(header)
+
 editor_h.write_text("""#pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
@@ -651,6 +656,18 @@ Freedom2Editor::Freedom2Editor(Freedom2Processor& p)
           if (id=="filterMode" && (value<0.0f || value>5.0f
               || std::floor(value)!=value)) {complete(false);return;}
           parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+          complete(true);
+        })
+      .withNativeFunction("freedomKeyboardNote",
+        [&p](const juce::Array<juce::var>& args,
+             juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+          if(args.size()!=3) {complete(false);return;}
+          const int note=static_cast<int>(args[0]);
+          const int velocity=static_cast<int>(args[1]);
+          const bool on=static_cast<bool>(args[2]);
+          if(note<0||note>127||velocity<0||velocity>127) {complete(false);return;}
+          if(on) p.getKeyboardState().noteOn(1,note,static_cast<float>(velocity)/127.0f);
+          else p.getKeyboardState().noteOff(1,note,0.0f);
           complete(true);
         })
       .withNativeFunction("freedomSetParameter",
