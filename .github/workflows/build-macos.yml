@@ -78,6 +78,18 @@ jobs:
                       print(f"{i}: {line[:260]}")
                       if i > 8000: break
           PY
+      - name: Inspect exact UI structure before modifying layout
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          h=(Path(os.environ["SOURCE_ROOT"])/"index.html").read_text()
+          for term in ['ANALOG SYNTHESIS','GRAPHITE / TITANIUM','LIBERTY · SIGNAL MONITOR','GLOBAL PLAY KEYBOARD','NOM DU PRESET PERSONNEL','Nom du preset personnel','PRESET BROWSER']:
+              m=re.search(re.escape(term),h,re.I)
+              print('EXACT UI MARKUP',term,'FOUND',bool(m))
+              if m:print(repr(h[max(0,m.start()-850):m.end()+1100]))
+          PY
       - name: Install native filter ADSR
         shell: bash
         run: python3 scripts/add_filter_adsr.py "$SOURCE_ROOT"
