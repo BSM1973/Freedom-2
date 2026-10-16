@@ -1194,6 +1194,11 @@ jobs:
             std::cout<<"Direct native DSP peak: "<<dspPeak<<std::endl;
             Freedom2Processor instrument;
             instrument.prepareToPlay(48000.0,512);
+            // Inspect actual APVTS defaults used by the host processor.
+            for(const char* id:{"master","attack","decay","sustain","cutoff","osc1On","osc1Level","osc2On","osc2Level","osc3On","osc3Level"}) {
+              const auto* value=instrument.getValueTreeState().getRawParameterValue(id);
+              std::cout<<"Host DSP parameter "<<id<<" = "<<(value?value->load():-999.0f)<<std::endl;
+            }
             juce::AudioBuffer<float> audio(2,512);
             juce::MidiBuffer notes;
             notes.addEvent(juce::MidiMessage::noteOn(1,60,(juce::uint8)110),0);
