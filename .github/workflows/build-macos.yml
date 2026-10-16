@@ -1118,6 +1118,16 @@ jobs:
           print("Processor header: plugin/Source/PluginProcessor.h")
           print("JUCE plugin targets:",re.findall(r'juce_add_plugin\s*\(\s*([^\s)]+)',cmake))
           print("Additional plugin sources:",sorted(p.name for p in (root/"Source").glob("*.cpp")))
+          # Inspect the processor constructor and CMake source wiring before
+          # linking an executable test against the actual plugin implementation.
+          constructor=re.search(r'Freedom2Processor::Freedom2Processor\s*\([^)]*\)',source)
+          assert constructor,"Missing processor constructor implementation"
+          assert re.search(r'PluginProcessor\.cpp',cmake),"CMake must compile the real processor"
+          print("Constructor declaration:",constructor.group(0))
+          print("Processor compilation unit: included in JUCE target")
+          print("Host-state API declarations:",
+                [line.strip() for line in header.splitlines()
+                 if 'getStateInformation' in line or 'setStateInformation' in line])
           print("NOTE: inspection only; no Freedom2Processor runtime test is executed here.")
           PY
       - name: Configure ARM64
