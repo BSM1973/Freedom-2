@@ -824,6 +824,11 @@ jobs:
           assert direct or staged,"Processor must serialize its APVTS snapshot as XML"
           assert re.search(r'apvts\.replaceState\s*\(\s*juce::ValueTree::fromXml\s*\(\s*\*xml\s*\)\s*\)',load.group(1)), \
               "Processor must replace APVTS using the decoded host XML"
+          # A valid XML document with the wrong root must not replace host state.
+          assert re.search(r'xml->hasTagName\s*\(\s*apvts\.state\.getType\(\)\s*\)',load.group(1)), \
+              "Processor must compare the XML root against its own APVTS state type"
+          assert re.search(r'if\s*\(\s*xml\s*&&\s*xml->hasTagName\s*\(\s*apvts\.state\.getType\(\)\s*\)\s*\)\s*apvts\.replaceState',load.group(1)), \
+              "Processor must only replace state inside the validated XML guard"
           print("AU/VST3 state contract: 5 filter ADSR parameters registered, DSP/UI mapped, APVTS host save/restore present")
           print("Static contract check only; actual DAW preset roundtrip remains to be tested")
           PY
