@@ -90,6 +90,19 @@ jobs:
           test -f "$SOURCE_ROOT/plugin/CMakeLists.txt"
           test -f "$SOURCE_ROOT/native/CMakeLists.txt"
           test -f "$SOURCE_ROOT/plugin/Source/PluginProcessor.cpp"
+      - name: Audit original UI waveform and gesture handlers
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          page=(Path(os.environ["SOURCE_ROOT"])/"index.html").read_text()
+          for pattern in (r'AudioContext',r'createOscillator',r'\.start\(',r'pointermove',r'mousemove',r'wheel',r'Osc_1_Wave',r'WAVEFORM',r'waveButtons',r'Wave'):
+            matches=list(re.finditer(pattern,page,re.I))
+            print('UI AUDIT',pattern,'matches',len(matches))
+            for m in matches[:5]:
+              print('CONTEXT',repr(page[max(0,m.start()-190):m.end()+260]))
+          PY
       - name: Validate original HTML audio engine
         shell: bash
         run: |
