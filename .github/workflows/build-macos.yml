@@ -1147,7 +1147,7 @@ jobs:
           assert test.exists()
           content += f"""
           add_executable(freedom_processor_state_test "{test}")
-          target_include_directories(freedom_processor_state_test PRIVATE "${{CMAKE_CURRENT_SOURCE_DIR}}/Source")
+          target_include_directories(freedom_processor_state_test PRIVATE "{root}/Source")
           target_link_libraries(freedom_processor_state_test PRIVATE
               {target}_SharedCode juce::juce_audio_utils juce::juce_audio_processors)
           target_compile_features(freedom_processor_state_test PRIVATE cxx_std_17)
@@ -1188,7 +1188,7 @@ jobs:
             for(int i=0;i<5;i++){
               auto* p=original.getParameters().getFirst();
               for(auto* candidate:original.getParameters())
-                if((dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)!=nullptr && dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)->paramID==ids[i])){p=candidate;break;}
+                if((dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)!=nullptr && dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)->paramID==ids[i]){p=candidate;break;}
               assert(p!=nullptr && dynamic_cast<juce::AudioProcessorParameterWithID*>(p)!=nullptr);
               auto* ranged=dynamic_cast<juce::RangedAudioParameter*>(p);
               assert(ranged!=nullptr);
