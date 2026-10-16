@@ -173,7 +173,7 @@ bridge = """
 ui_cleanup = """
 <script id="liberty-ui-cleanup">
 (() => {
-  const norm = text => (text || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+  const norm = text => (text || '').replace(/\s+/g, ' ').trim().toUpperCase();
   const findLabel = (label) => [...document.querySelectorAll('button, [role="button"], a, span, div, small')]
     .find(el => el.children.length === 0 && norm(el.textContent) === label);
   const closestButton = el => el?.closest('button, [role="button"], a') || el;
