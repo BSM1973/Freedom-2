@@ -461,6 +461,21 @@ if old_prepare not in processor_source and new_prepare not in processor_source:
     raise RuntimeError("Unexpected native prepareToPlay implementation")
 if old_prepare in processor_source:
     processor_cpp.write_text(processor_source.replace(old_prepare,new_prepare,1))
+# Diagnostic for host MIDI event dispatch and block rendering; retained only
+# while the native audio regression is failing. No UI changes.
+processor_source=processor_cpp.read_text()
+if 'LIBERTY_MIDI_TRACE' not in processor_source:
+    target='for(const auto meta:midi){'
+    if target not in processor_source:
+        raise RuntimeError("Native processBlock MIDI loop not found")
+    processor_source=processor_source.replace(target,
+        'for(const auto meta:midi){ '
+        'std::fprintf(stderr,"LIBERTY_MIDI_TRACE noteOn=%d note=%d velocity=%.3f\\n", '
+        '(int)meta.getMessage().isNoteOn(), meta.getMessage().getNoteNumber(), '
+        'meta.getMessage().getVelocity()); ',1)
+    if '#include <cstdio>' not in processor_source:
+        processor_source='#include <cstdio>\\n'.replace('\\n','\\n')+processor_source
+    processor_cpp.write_text(processor_source)
 processor_h=plugin/"Source/PluginProcessor.h"
 header=processor_h.read_text()
 if "getValueTreeState()" not in header:
