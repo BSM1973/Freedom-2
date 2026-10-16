@@ -452,7 +452,7 @@ juce_add_binary_data(Freedom2WebUI SOURCES WebUI/index.html)
 target_link_libraries(Freedom2 PRIVATE Freedom2WebUI)
 """
 cmake.write_text(s)
-processor_h=plugin/"Source/PluginProcessor.h"
+# Initialize native DSP parameters as soon as the host prepares audio.\n# This does not create a WebAudio context or require opening the editor.\nprocessor_cpp=plugin/"Source/PluginProcessor.cpp"\nprocessor_source=processor_cpp.read_text()\nold_prepare='scratchR.resize((size_t)std::max(1,block));dsp.panic();'\nnew_prepare='scratchR.resize((size_t)std::max(1,block));syncParameters();dsp.panic();'\nif old_prepare not in processor_source and new_prepare not in processor_source:\n    raise RuntimeError("Unexpected native prepareToPlay implementation")\nif old_prepare in processor_source:\n    processor_cpp.write_text(processor_source.replace(old_prepare,new_prepare,1))\nprocessor_h=plugin/"Source/PluginProcessor.h"
 header=processor_h.read_text()
 if "getValueTreeState()" not in header:
     header=header.replace("public:", "public:\n  juce::AudioProcessorValueTreeState& getValueTreeState() noexcept { return apvts; }",1)
