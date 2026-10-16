@@ -1222,6 +1222,49 @@ jobs:
               std::cerr<<"SILENT DSP: host MIDI render produced no audible samples"<<std::endl;
               return 2;
             }
+            // Critical audible-regression test: parameters MUST alter rendered audio.
+            auto renderPatch=[&](int wave,float cutoff,float level){
+              Freedom2Processor synth;
+              synth.prepareToPlay(48000.0,512);
+              auto setPhysical=[&](const char* id,float value){
+                auto* p=synth.getValueTreeState().getParameter(id);
+                assert(p!=nullptr);
+                p->setValueNotifyingHost(p->convertTo0to1(value));
+              };
+              setPhysical("osc1Wave",(float)wave);
+              setPhysical("osc1Level",level);
+              setPhysical("osc2Level",0.0f);
+              setPhysical("osc3Level",0.0f);
+              setPhysical("cutoff",cutoff);
+              juce::AudioBuffer<float> out(2,512);
+              juce::MidiBuffer midi;
+              midi.addEvent(juce::MidiMessage::noteOn(1,60,(juce::uint8)110),0);
+              std::vector<float> samples;
+              for(int b=0;b<8;++b){
+                out.clear();synth.processBlock(out,midi);midi.clear();
+                if(b>=2)for(int n=0;n<512;++n)samples.push_back(out.getSample(0,n));
+              }
+              synth.releaseResources();
+              return samples;
+            };
+            const auto saw=renderPatch(0,14000.f,0.7f);
+            const auto square=renderPatch(1,14000.f,0.7f);
+            const auto muted=renderPatch(0,14000.f,0.f);
+            const auto filtered=renderPatch(0,300.f,0.7f);
+            auto difference=[](const auto& a,const auto& b){
+              assert(a.size()==b.size());double sum=0;
+              for(size_t i=0;i<a.size();++i)sum+=std::abs((double)a[i]-b[i]);
+              return sum/a.size();
+            };
+            const double waveDiff=difference(saw,square);
+            const double levelDiff=difference(saw,muted);
+            const double filterDiff=difference(saw,filtered);
+            std::cout<<"AUDIBLE PARAMETER DIFFERENCE wave="<<waveDiff
+                     <<" level="<<levelDiff<<" cutoff="<<filterDiff<<std::endl;
+            if(waveDiff<0.0001||levelDiff<0.0001||filterDiff<0.0001){
+              std::cerr<<"FAIL: Freedom 2 produces the same audio across different patches"<<std::endl;
+              return 3;
+            }
             instrument.releaseResources();
             std::cout<<"Freedom2 native host MIDI -> stereo audio peak: "<<peak<<std::endl;
             std::cout<<"Real Freedom2Processor ADSR host state roundtrip passed\n";
