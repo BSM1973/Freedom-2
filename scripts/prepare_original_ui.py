@@ -351,6 +351,18 @@ full_bridge = """
     sustain:['ampsustain','ampenvsustain','ampenvelopesustain'],
     release:['amprelease','ampenvrelease','ampenveloperelease']
   };
+  // Visible native-link telemetry: a green build cannot validate an embedded WebView.
+  let applied=0, rejected=0, missing=0, lastError='';
+  function status(message,ok) {
+    let el=document.getElementById('liberty-native-status');
+    if(!el){
+      el=document.createElement('div');el.id='liberty-native-status';
+      el.style.cssText='position:fixed;bottom:8px;right:12px;z-index:2147483647;padding:7px 12px;border-radius:7px;font:12px system-ui;background:#17212b;color:#fff;border:1px solid #65717d;pointer-events:none';
+      document.body.appendChild(el);
+    }
+    el.style.borderColor=ok?'#30c89c':'#ef765c';
+    el.textContent='JUCE DSP: '+message;
+  }
   let last = new Map(), pending = false;
   async function push() {
     if(pending)return;
@@ -358,7 +370,8 @@ full_bridge = """
     const backend=window.__JUCE__?.backend;
     const set=backend?.getNativeFunction?.('freedomSetParameter');
     const get=backend?.getNativeFunction?.('freedomGetParameter');
-    if(!ui?.getParameters||!set||!get)return;
+    if(!ui?.getParameters){status('interface non prête',false);return;}
+    if(!set||!get){status('liaison native INACTIVE',false);return;}
     pending=true;
     try {
       const values=ui.getParameters();
@@ -377,10 +390,14 @@ full_bridge = """
           const actual=Number(await get(id));
           // Do not report synchronization until the native parameter
           // confirms the requested physical value (after range clamping).
-          if(Number.isFinite(actual))last.set(key,v);
-        }
+          if(Number.isFinite(actual)){
+            last.set(key,v);applied++;
+            if(Math.abs(actual-v)>0.02)lastError=key+': demandé '+v+', natif '+actual.toFixed(3);
+          }
+        } else {rejected++;lastError=key+' refusé par JUCE';}
       }
-    } catch(e) { console.error('Freedom 2 native parameter sync failed:',e); }
+      status('écritures '+applied+' | refus '+rejected+(lastError?' | '+lastError:''),applied>0&&rejected===0);
+    } catch(e) { lastError=String(e);status('ERREUR '+lastError,false);console.error('Freedom 2 native parameter sync failed:',e); }
     finally {pending=false;}
   }
   // Preset loads often mutate many fields without dispatching DOM change.
