@@ -20,6 +20,8 @@ assets.mkdir(exist_ok=True)
 # The UI's LibertyFreedomUI API exposes parameter keys used by the native
 # AudioProcessorValueTreeState. Check the oscillator contract before building.
 source_html=html.read_text()
+# Hide the first uncleaned paint until the synchronous cleanup finishes.
+source_html=source_html.replace("<html",'<html class="liberty-ui-initializing"',1)
 native_params=(plugin/"Source/PluginProcessor.cpp").read_text()
 for oscillator in (1,2,3):
     for suffix in ("On","Wave","Octave","Semitone","Fine","Volume","Pan","Phase","Pulse_Width"):
@@ -52,7 +54,8 @@ browser_audio_guard = """
 """
 ui_cleanup = """
 <style id="liberty-ui-cleanup-style">
-/* Cleanup-only styling: the oscillator and preset layouts remain untouched. */
+/* Prevent a transient frame of uncleaned controls on initial render. */
+html.liberty-ui-initializing body { visibility:hidden!important; }
 </style>
 <script id="liberty-ui-cleanup">
 (() => {
@@ -202,6 +205,29 @@ ui_cleanup = """
       primary.dataset.libertyPrimaryWave='true';
       for(const duplicate of rows.slice(1))hide(duplicate);
     }
+    // Remove the original WAVE rotary control itself (knob, label and value).
+    // Its numeric parameter remains accessible through the large waveform row.
+    for(let number=1;number<=3;number++){
+      const heading=allElements.find(el=>el.children.length===0 &&
+        normalize(el.textContent)==='OSCILLATOR 0'+number);
+      if(!heading)continue;
+      let card=heading.parentElement;
+      while(card && !card.querySelector('[data-liberty-primary-wave]'))card=card.parentElement;
+      if(!card)continue;
+      const waveLabels=[...card.querySelectorAll('label,span,div,small')].filter(el=>
+        el.children.length===0 && normalize(el.textContent)==='WAVE');
+      for(const label of waveLabels){
+        let control=label;
+        while(control.parentElement && control.parentElement!==card){
+          const next=control.parentElement;
+          const rect=next.getBoundingClientRect();
+          if(rect.width>150 || rect.height>270)break;
+          control=next;
+          if(control.querySelector('input,[role="slider"],.v49-knob'))break;
+        }
+        if(control!==label && !control.querySelector('[data-liberty-primary-wave]'))hide(control);
+      }
+    }
     // Retain the four large waveform choices. Remove only a separate WAVE
     // parameter control, never the primary SINE/SAW/PULSE/TRI selector.
     for(let osc=1;osc<=3;osc++){
@@ -336,25 +362,24 @@ ui_cleanup = """
     removeStrip(['ENGINE · FREEDOM 2','AUDIOWORKLET EXPERIMENTAL']);
   }
   let cleaning=false;
+  const observer=new MutationObserver(changes=>{
+    if(cleaning||!changes.some(c=>c.type==='childList'&&c.addedNodes.length))return;
+    runCleanup(); // MutationObserver runs before the next browser paint.
+  });
   function runCleanup(){
     if(cleaning)return;
     cleaning=true;
+    observer.disconnect();
     try{cleanup();}catch(error){console.warn('Liberty UI cleanup:',error);}
-    finally{cleaning=false;}
+    finally{
+      document.documentElement.classList.remove('liberty-ui-initializing');
+      cleaning=false;
+      observer.observe(document.documentElement,{childList:true,subtree:true});
+    }
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',runCleanup,{once:true});
   else runCleanup();
   window.addEventListener('load',runCleanup,{once:true});
-  // Reapply after asynchronous UI reconstruction, including preset loads.
-  // Only react to newly inserted DOM nodes; styling existing nodes is ignored.
-  let scheduled=false;
-  const observer=new MutationObserver(changes=>{
-    if(cleaning||scheduled||!changes.some(c=>c.type==='childList'&&c.addedNodes.length))return;
-    scheduled=true;
-    setTimeout(()=>{scheduled=false;runCleanup();},80);
-  });
-  observer.observe(document.documentElement,{childList:true,subtree:true});
-  [150,650,1800].forEach(delay=>setTimeout(runCleanup,delay));
 
 })();
 </script>
