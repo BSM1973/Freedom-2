@@ -336,62 +336,56 @@ ui_cleanup = """
 
 
 
-    // Bottom-of-page visual cleanup. Only hide tightly bounded elements;
-    // never remove a parent that owns the keyboard or the application root.
-    const leafContaining = phrase => nodes().find(el =>
-      el.children.length===0 && normalize(el.textContent).includes(phrase));
-    const hideSmallStrip = phrase => {
-      const leaf=leafContaining(phrase);
-      if(!leaf) return;
-      let candidate=leaf;
-      for(let depth=0;depth<5 && candidate.parentElement;depth++){
-        const parent=candidate.parentElement;
-        const rect=parent.getBoundingClientRect();
-        const content=normalize(parent.textContent);
-        if(content.includes('GLOBAL PLAY KEYBOARD') ||
-           content.includes('OSCILLATOR 01') ||
-           content.includes('MIDI PERFORMANCE')) break;
-        if(rect.width>document.documentElement.clientWidth*0.65 &&
-           rect.height>=16 && rect.height<=85){
-          hide(parent);
-          return;
-        }
-        candidate=parent;
-      }
-      hide(leaf);
+    // Scoped lower-UI cleanup. Find text even when split across nested spans.
+    // Never hide body, the app root, or an ancestor of the global keyboard.
+    const textMatch = phrase => {
+      const wanted=normalize(phrase);
+      const matches=[...document.querySelectorAll('div,span,section,header,footer,p,small,strong,label')].filter(el=>
+        normalize(el.textContent).includes(wanted) &&
+        ![...el.children].some(child=>normalize(child.textContent).includes(wanted)));
+      return matches[0] || null;
     };
-    hideSmallStrip('DESIGN SYSTEM 1.0');
-    hideSmallStrip('VISUAL PARAMETER PREVIEW');
-    for(const phrase of ['GRAPHITE TITANIUM · EXPRESSION',
-                         'PITCH REVIENT AU CENTRE AU RELÂCHEMENT']){
-      hide(leafContaining(phrase));
-    }
-    // Hide the diagnostics section starting with "MIDI PERFORMANCE",
-    // plus its following peer sections. Do not traverse into a shared
-    // ancestor that also contains the global keyboard.
-    const midi=leafContaining('MIDI PERFORMANCE · LIBERTY BRIDGE');
-    if(midi){
-      let panel=midi;
-      for(let depth=0;depth<7 && panel.parentElement;depth++){
-        const parent=panel.parentElement;
-        const txt=normalize(parent.textContent);
-        if(txt.includes('GLOBAL PLAY KEYBOARD') || txt.includes('OSCILLATOR 01')) break;
-        const rect=parent.getBoundingClientRect();
-        if(rect.width>document.documentElement.clientWidth*0.65 &&
-           rect.height>=100){
-          panel=parent;
-          break;
-        }
-        panel=parent;
+    const keyboardTitle=textMatch('GLOBAL PLAY KEYBOARD');
+    const safeHide=el=>{
+      if(!el || el===document.body || el===document.documentElement) return false;
+      if(keyboardTitle && el.contains(keyboardTitle)) return false;
+      hide(el);
+      return true;
+    };
+    const hideBanner=phrase=>{
+      const leaf=textMatch(phrase);
+      if(!leaf) return;
+      let chosen=null;
+      for(let el=leaf;el && el!==document.body;el=el.parentElement){
+        const rect=el.getBoundingClientRect();
+        if(keyboardTitle && el.contains(keyboardTitle)) break;
+        if(rect.width>=document.documentElement.clientWidth*0.65 &&
+           rect.height>=18 && rect.height<=90) chosen=el;
       }
-      // Never hide the document body or a container that owns the keyboard.
-      if(panel!==document.body && !normalize(panel.textContent).includes('GLOBAL PLAY KEYBOARD')){
-        let peer=panel;
-        while(peer && peer.parentElement && peer!==document.body){
-          const next=peer.nextElementSibling;
-          if(normalize(peer.textContent).includes('GLOBAL PLAY KEYBOARD')) break;
-          hide(peer);
-          peer=next;
+      safeHide(chosen || leaf);
+    };
+    hideBanner('DESIGN SYSTEM 1.0');
+    hideBanner('VISUAL PARAMETER PREVIEW');
+    safeHide(textMatch('GRAPHITE TITANIUM · EXPRESSION'));
+    safeHide(textMatch('PITCH REVIENT AU CENTRE AU RELÂCHEMENT'));
+    // Remove the entire MIDI PERFORMANCE panel and following panels.
+    // Select the largest MIDI-only section immediately below the keyboard,
+    // without ever ascending into a common parent containing the keyboard.
+    const midiTitle=textMatch('MIDI PERFORMANCE');
+    if(midiTitle && keyboardTitle){
+      let panel=midiTitle;
+      for(let el=midiTitle;el && el!==document.body;el=el.parentElement){
+        if(el.contains(keyboardTitle)) break;
+        const rect=el.getBoundingClientRect();
+        if(rect.width>=document.documentElement.clientWidth*0.65 &&
+           rect.height>=85) panel=el;
+      }
+      if(panel!==midiTitle){
+        let sibling=panel;
+        while(sibling){
+          const next=sibling.nextElementSibling;
+          if(!safeHide(sibling)) break;
+          sibling=next;
         }
       }
     }
