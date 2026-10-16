@@ -446,6 +446,13 @@ full_bridge = """
 <script id="liberty-native-full-parameter-bridge">
 (() => {
   const mapping = {
+    // UI uses ADSR_Amp_* and Effects_* names in several original versions.
+    Amp_Envelope_Attack:'attack', Amp_Envelope_Decay:'decay',
+    Amp_Envelope_Sustain:'sustain', Amp_Envelope_Release:'release',
+    ADSR_Amp_Attack:'attack', ADSR_Amp_Decay:'decay',
+    ADSR_Amp_Sustain:'sustain', ADSR_Amp_Release:'release',
+    Performance_Master_Volume:'master', Performance_Volume:'master',
+    Global_Master_Volume:'master', Global_Volume:'master',
     Amp_Attack:'attack', Amp_Decay:'decay', Amp_Sustain:'sustain', Amp_Release:'release',
     Master_Volume:'master', Master_Gain:'master', Master_Level:'master',
     Filter_Cutoff:'cutoff', Filter_Resonance:'resonance', Filter_Type:'filterMode',
@@ -465,6 +472,15 @@ full_bridge = """
     mapping['Matrix_'+i+'_Destination']='route'+i+'Dest';
     mapping['Matrix_'+i+'_Amount']='route'+i+'Amount';
   }
+  // Automatically map controls whose names differ only in punctuation/case.
+  // The JUCE side rejects unknown IDs; never silently treat them as connected.
+  const aliases = {
+    master:['mastervolume','mastergain','outputvolume','globalvolume'],
+    attack:['ampattack','ampenvattack','ampenvelopeattack'],
+    decay:['ampdecay','ampenvdecay','ampenvelopedecay'],
+    sustain:['ampsustain','ampenvsustain','ampenvelopesustain'],
+    release:['amprelease','ampenvrelease','ampenveloperelease']
+  };
   let last = new Map(), pending = false;
   async function push() {
     if(pending)return;
@@ -474,6 +490,12 @@ full_bridge = """
     pending=true;
     try {
       const values=ui.getParameters();
+      for(const key of Object.keys(values)) {
+        if(key in mapping)continue;
+        const normalized=key.toLowerCase().replace(/[^a-z0-9]/g,'');
+        for(const [id,names] of Object.entries(aliases))
+          if(names.includes(normalized))mapping[key]=id;
+      }
       for(const [key,id] of Object.entries(mapping)) {
         if(!(key in values))continue;
         const v=Number(values[key]);
