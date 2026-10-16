@@ -1149,7 +1149,7 @@ jobs:
                                "filterEnvRelease","filterEnvAmount"};
             const float values[]={0.16f,1.8f,0.45f,2.6f,-1.75f};
             for(int i=0;i<5;i++){
-              auto* p=original.getParameters().getFirst();
+              juce::AudioProcessorParameter* p=nullptr;
               for(auto* candidate:original.getParameters())
                 if((dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)!=nullptr && dynamic_cast<juce::AudioProcessorParameterWithID*>(candidate)->paramID==ids[i])){p=candidate;break;}
               assert(p!=nullptr && dynamic_cast<juce::AudioProcessorParameterWithID*>(p)!=nullptr);
