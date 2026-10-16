@@ -565,7 +565,7 @@ if "getValueTreeState()" not in header:
 
 if "getKeyboardState()" not in header:
     header=processor_h.read_text()
-    header=header.replace("public:", "public:\\n  juce::MidiKeyboardState& getKeyboardState() noexcept { return keyboardState; }".replace("\\n","\\n"),1)
+    header=header.replace("public:", "public:" + chr(10) + "  juce::MidiKeyboardState& getKeyboardState() noexcept { return keyboardState; }",1)
     processor_h.write_text(header)
 
 editor_h.write_text("""#pragma once
