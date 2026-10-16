@@ -335,59 +335,6 @@ ui_cleanup = """
     }
 
 
-    // Lower-page cleanup: preserve the global keyboard and its pitch/mod controls.
-    const findLeaf = fragment => nodes().find(el=>el.children.length===0 &&
-      normalize(el.textContent).includes(fragment));
-    const removeCompactBand = (fragment, companion) => {
-      const leaf=findLeaf(fragment);
-      if(!leaf) return;
-      let el=leaf;
-      while(el.parentElement) {
-        const parent=el.parentElement;
-        const text=normalize(parent.textContent);
-        if(text.includes('GLOBAL PLAY KEYBOARD') || text.includes('OSCILLATOR 01')) break;
-        const rect=parent.getBoundingClientRect();
-        if(rect.width>=document.documentElement.clientWidth*0.6 &&
-           rect.height>15 && rect.height<100 &&
-           (!companion || text.includes(companion))) {
-          hide(parent);
-          return;
-        }
-        el=parent;
-      }
-      hide(leaf);
-    };
-    removeCompactBand('DESIGN SYSTEM 1.0','PRÊT');
-    removeCompactBand('VISUAL PARAMETER PREVIEW','NO DSP / NO AUDIO');
-    for(const fragment of ['GRAPHITE TITANIUM · EXPRESSION',
-       'PITCH REVIENT AU CENTRE AU RELÂCHEMENT']) {
-      const leaf=findLeaf(fragment);
-      if(leaf) hide(leaf);
-    }
-    // Hide the complete MIDI diagnostics panel and everything after it,
-    // rather than deleting the keyboard or any of its interactive elements.
-    const midiHeading=findLeaf('MIDI PERFORMANCE · LIBERTY BRIDGE');
-    if(midiHeading) {
-      let panel=midiHeading;
-      while(panel.parentElement) {
-        const parent=panel.parentElement;
-        const rect=parent.getBoundingClientRect();
-        if(rect.width>=document.documentElement.clientWidth*0.65 &&
-           rect.height>=70 && !normalize(parent.textContent).includes('GLOBAL PLAY KEYBOARD')) {
-          panel=parent;
-          break;
-        }
-        panel=parent;
-      }
-      const following=[];
-      let cursor=panel;
-      while(cursor) {
-        following.push(cursor);
-        cursor=cursor.nextElementSibling;
-      }
-      following.forEach(hide);
-    }
-
     hideButton('ACTUALISER LES ONDES');
     // Hide diagnostic copy only, without hiding its containing toolbar.
     for (const el of nodes()) {
@@ -411,14 +358,7 @@ ui_cleanup = """
   if (document.readyState==='loading') document.addEventListener('DOMContentLoaded',cleanup,{once:true});
   else cleanup();
   window.addEventListener('load',cleanup,{once:true});
-  const observer=new MutationObserver(() => {
-    observer.disconnect();
-    cleanup();
-    observer.observe(document.body,{childList:true,subtree:true});
-  });
-  const begin=()=>observer.observe(document.body,{childList:true,subtree:true});
-  if (document.body) begin();
-  else document.addEventListener('DOMContentLoaded',begin,{once:true});
+
 })();
 </script>
 """
