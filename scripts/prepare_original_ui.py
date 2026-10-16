@@ -534,130 +534,73 @@ full_bridge = """
 </script>
 """
 header_trim = """
-<style id="liberty-header-layout-css">
+<style id="liberty-precise-layout">
+/* Exact selectors audited from the original v8.8 HTML, no DOM surgery. */
+.top > .sub, #libertyTools, .v08-master-strip { display:none!important; }
+.v61-console:not(.liberty-keyboard-open) { display:none!important; }
 #liberty-master-slot{display:flex;align-items:center;gap:8px;position:absolute;left:265px;top:29px;z-index:11;color:#cbdce7;font:600 12px system-ui}
 #liberty-master-slot input{width:115px;accent-color:#54c6df;cursor:pointer}
 #liberty-master-slot output{width:38px;text-align:right;font-variant-numeric:tabular-nums}
 #liberty-keyboard-toggle{position:fixed;z-index:11;padding:7px 11px;border-radius:7px;border:1px solid #426b82;background:#142b3c;color:#dce9f2;font:600 12px system-ui;cursor:pointer}
 </style>
-<script id="liberty-header-layout-js">
+<script id="liberty-precise-layout-script">
 (() => {
- const norm=e=>(e?.textContent||'').replace(/\s+/g,' ').trim().toUpperCase();
- const hide=e=>{if(e){e.hidden=true;e.style.setProperty('display','none','important');}};
  let keyboardOpen=false;
- function header(){
-   const browser=[...document.querySelectorAll('button')].find(b=>norm(b).includes('PRESET BROWSER'));
-   return browser?.parentElement?.parentElement||null;
- }
- function keyboard(){
-   const title=[...document.querySelectorAll('div,span,h2,h3,h4')].find(e=>
-     e.children.length===0&&norm(e).includes('GLOBAL PLAY KEYBOARD'));
-   if(!title)return null;
-   let section=title.parentElement;
-   for(let n=0;n<7&&section;n++,section=section.parentElement){
-     if(section.querySelectorAll('[data-note],[data-midi-note],.piano-key,.keyboard-key,.white-key,.black-key').length>=12)return section;
-     if(section.querySelectorAll('button').length>=12&&section.getBoundingClientRect().height>120)return section;
-   }
-   return title.parentElement;
- }
  function updateKeyboard(){
-   const section=keyboard();
-   if(section)section.style.setProperty('display',keyboardOpen?'':'none',keyboardOpen?'':'important');
+   const section=document.querySelector('.v61-console');
+   if(section)section.classList.toggle('liberty-keyboard-open',keyboardOpen);
    const button=document.getElementById('liberty-keyboard-toggle');
-   if(button){button.textContent=keyboardOpen?'FERMER CLAVIER':'AFFICHER CLAVIER';button.setAttribute('aria-expanded',String(keyboardOpen));}
- }
- function clean(){
-   const head=header();
-   if(head){
-     head.style.position='relative';
-     // Hide the complete two-line subtitle block, including nested spans.
-     // Do not hide its logo or preset-browser ancestors.
-     const subtitles=[...head.querySelectorAll('div,span,small,p')].filter(el=>
-       el.children.length===0 && (/ANALOG SYNTHESIS/.test(norm(el)) ||
-       /PREMIUM EDITION/.test(norm(el)) || /GRAPHITE\s*[/·]\s*TITANIUM/.test(norm(el))));
-     for(const el of subtitles){
-       let block=el;
-       while(block.parentElement && block.parentElement!==head){
-         const parent=block.parentElement;
-         if(parent.querySelector('button,select,[role="combobox"]'))break;
-         if(parent.getBoundingClientRect().width>400)break;
-         if(parent.querySelectorAll('div,span,small,p').length>8)break;
-         block=parent;
-       }
-       hide(block);
-     }
-     if(!document.getElementById('liberty-master-slot')){
-       const master=document.createElement('label');
-       master.id='liberty-master-slot';
-       master.innerHTML='MASTER <input type="range" min="0" max="100" step="1" value="80" aria-label="Volume général"><output>80 %</output>';
-       head.appendChild(master);
-       const slider=master.querySelector('input'),output=master.querySelector('output');
-       slider.addEventListener('input',()=>{
-         const v=Number(slider.value)/100;
-         output.textContent=slider.value+' %';
-         const ui=window.LibertyFreedomUI;
-         const values=ui?.getParameters?.()||{};
-         const key=['Performance_Master_Volume','Performance_Volume','Global_Master_Volume','Global_Volume','Master_Volume','Master_Gain','Master_Level'].find(k=>k in values);
-         if(key&&ui?.setParameter)ui.setParameter(key,v);
-         else{
-           const fn=window.__JUCE__?.backend?.getNativeFunction?.('freedomSetParameter');
-           if(fn)Promise.resolve(fn('master',v)).catch(console.warn);
-         }
-       });
-     }
-     if(!document.getElementById('liberty-keyboard-toggle')){
-       const toggle=document.createElement('button');
-       toggle.type='button';toggle.id='liberty-keyboard-toggle';
-       toggle.addEventListener('click',()=>{keyboardOpen=!keyboardOpen;updateKeyboard();});
-       head.appendChild(toggle);
-     }
-     // Anchor the toggle immediately LEFT of the actual preset selector.
-     const selector=[...head.querySelectorAll('select,[role="combobox"],button')].find(e=>
-       e.id!=='liberty-keyboard-toggle' &&
-       (e.matches('select,[role="combobox"]') || /^(BASS|PAD|LEAD|KEYS|INIT|PLUCK|FX)\s*[·:]/i.test((e.textContent||'').trim())));
-     const preset=selector||[...head.querySelectorAll('button')].find(e=>norm(e).includes('PRESET BROWSER'));
-     const toggle=document.getElementById('liberty-keyboard-toggle');
-     if(toggle&&preset){
-       const rect=preset.getBoundingClientRect();
-       const width=toggle.offsetWidth||145;
-       toggle.style.left=Math.max(8,rect.left-width-12)+'px';
-       toggle.style.top=Math.max(8,rect.top+(rect.height-toggle.offsetHeight)/2)+'px';
-     }
+   if(button){
+     button.textContent=keyboardOpen?'FERMER CLAVIER':'AFFICHER CLAVIER';
+     button.setAttribute('aria-expanded',String(keyboardOpen));
    }
-   // Remove the entire obsolete row, not just its text. Locate the
-   // presets-save row below it to ensure we never hide that row.
-   const signal=[...document.querySelectorAll('div,span')].find(e=>
-     e.children.length===0&&norm(e)==='LIBERTY · SIGNAL MONITOR');
-   const save=[...document.querySelectorAll('input')].find(e=>
-     /Nom du preset personnel/i.test(e.placeholder||''));
-   if(signal){
-     let row=signal;
-     for(let n=0;n<7&&row.parentElement;n++){
-       const next=row.parentElement;
-       if(next===document.body||next.contains(save))break;
-       if(next.getBoundingClientRect().width>window.innerWidth*.7){
-         row=next;
-         break;
+ }
+ function install(){
+   const head=document.querySelector('header.top');
+   if(!head)return;
+   head.style.position='relative';
+   if(!document.getElementById('liberty-master-slot')){
+     const master=document.createElement('label');
+     master.id='liberty-master-slot';
+     master.innerHTML='MASTER <input type="range" min="0" max="100" step="1" value="80" aria-label="Volume général"><output>80 %</output>';
+     head.appendChild(master);
+     const slider=master.querySelector('input'),output=master.querySelector('output');
+     slider.addEventListener('input',()=>{
+       const value=Number(slider.value)/100;
+       output.textContent=slider.value+' %';
+       const ui=window.LibertyFreedomUI;
+       const values=ui?.getParameters?.()||{};
+       const key=['Performance_Master_Volume','Performance_Volume','Global_Master_Volume','Global_Volume','Master_Volume','Master_Gain','Master_Level'].find(k=>k in values);
+       if(key&&ui?.setParameter)ui.setParameter(key,value);
+       else{
+         const fn=window.__JUCE__?.backend?.getNativeFunction?.('freedomSetParameter');
+         if(fn)Promise.resolve(fn('master',value)).catch(console.warn);
        }
-       row=next;
-     }
-     if(row!==document.body && !row.contains(save))hide(row);
+     });
+   }
+   let toggle=document.getElementById('liberty-keyboard-toggle');
+   if(!toggle){
+     toggle=document.createElement('button');
+     toggle.id='liberty-keyboard-toggle';toggle.type='button';
+     toggle.addEventListener('click',()=>{keyboardOpen=!keyboardOpen;updateKeyboard();});
+     head.appendChild(toggle);
+   }
+   const preset=document.getElementById('preset');
+   if(preset){
+     const rect=preset.getBoundingClientRect();
+     toggle.style.left=Math.max(8,rect.left-(toggle.offsetWidth||145)-12)+'px';
+     toggle.style.top=Math.max(8,rect.top+(rect.height-toggle.offsetHeight)/2)+'px';
    }
    updateKeyboard();
  }
- let busy=false;
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});
+ else install();
+ window.addEventListener('load',install,{once:true});
+ // Only keyboard creation needs watching. No element hiding or tree traversal.
  const observer=new MutationObserver(changes=>{
-   if(!busy&&changes.some(c=>c.addedNodes.length))run();
+   if(changes.some(c=>[...c.addedNodes].some(n=>n.nodeType===1&&(n.matches?.('.v61-console')||n.querySelector?.('.v61-console')))))updateKeyboard();
  });
- function run(){
-   if(busy)return;
-   busy=true;observer.disconnect();
-   try{clean();}catch(error){console.warn('Liberty header layout',error);}
-   finally{busy=false;observer.observe(document.documentElement,{childList:true,subtree:true});}
- }
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});
- else run();
- window.addEventListener('load',run,{once:true});
+ observer.observe(document.documentElement,{subtree:true,childList:true});
 })();
 </script>
 """
