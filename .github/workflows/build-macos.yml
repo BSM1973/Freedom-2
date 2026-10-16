@@ -97,7 +97,7 @@ jobs:
           import os,re
           from pathlib import Path
           html=(Path(os.environ['SOURCE_ROOT'])/'index.html').read_text()
-          for m in list(re.finditer(r'MODULATION\\s+LAB',html,re.I))[:12]:
+          for m in list(re.finditer(r'MODULATION|\\bLAB\\b|mod-lab|modLab',html,re.I))[:35]:
               print('MODULATION LAB EXACT CONTEXT',repr(html[max(0,m.start()-650):m.end()+1050]))
           PY
       - name: Install native filter ADSR
