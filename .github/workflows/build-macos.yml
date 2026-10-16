@@ -1047,6 +1047,23 @@ jobs:
             for(int i=0;i<incompleteTree.getNumChildren();i++)
               hasAmount |= incompleteTree.getChild(i).getProperty("id").toString()==ids[4];
             assert(!hasAmount);
+            // Model reopening a project: replace a different in-memory state
+            // with the complete decoded host snapshot and verify all ADSR values.
+            juce::ValueTree reopened("PARAMETERS");
+            for(int i=0;i<5;i++){
+              juce::ValueTree param("PARAM");
+              param.setProperty("id",ids[i],nullptr);
+              param.setProperty("value",0.0f,nullptr);
+              reopened.addChild(param,-1,nullptr);
+            }
+            assert(reopened.getNumChildren()==5);
+            reopened=juce::ValueTree::fromXml(*hostXml);
+            assert(reopened.isValid() && reopened.getNumChildren()==5);
+            for(int i=0;i<5;i++){
+              assert(reopened.getChild(i).getProperty("id").toString()==ids[i]);
+              assert(std::abs(static_cast<float>(reopened.getChild(i).getProperty("value"))
+                     -replacement[i])<0.0001f);
+            }
             // Exercise JUCE host chunks with multiple realistic ADSR snapshots.
             for(int snapshot=0;snapshot<32;snapshot++){
               juce::ValueTree variation("PARAMETERS");
