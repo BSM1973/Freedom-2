@@ -538,7 +538,7 @@ header_trim = """
 #liberty-master-slot{display:flex;align-items:center;gap:8px;position:absolute;left:265px;top:29px;z-index:11;color:#cbdce7;font:600 12px system-ui}
 #liberty-master-slot input{width:115px;accent-color:#54c6df;cursor:pointer}
 #liberty-master-slot output{width:38px;text-align:right;font-variant-numeric:tabular-nums}
-#liberty-keyboard-toggle{position:absolute;right:380px;top:29px;z-index:11;padding:7px 11px;border-radius:7px;border:1px solid #426b82;background:#142b3c;color:#dce9f2;font:600 12px system-ui;cursor:pointer}
+#liberty-keyboard-toggle{position:fixed;z-index:11;padding:7px 11px;border-radius:7px;border:1px solid #426b82;background:#142b3c;color:#dce9f2;font:600 12px system-ui;cursor:pointer}
 </style>
 <script id="liberty-header-layout-js">
 (() => {
@@ -570,9 +570,21 @@ header_trim = """
    const head=header();
    if(head){
      head.style.position='relative';
-     // Remove only the two-line tagline, never the FREEDOM 2 logo.
-     for(const el of head.querySelectorAll('div,span,small,p')){
-       if(el.children.length===0&&(/ANALOG SYNTHESIS.*PREMIUM EDITION/.test(norm(el))||norm(el)==='GRAPHITE / TITANIUM'))hide(el);
+     // Hide the complete two-line subtitle block, including nested spans.
+     // Do not hide its logo or preset-browser ancestors.
+     const subtitles=[...head.querySelectorAll('div,span,small,p')].filter(el=>
+       el.children.length===0 && (/ANALOG SYNTHESIS/.test(norm(el)) ||
+       /PREMIUM EDITION/.test(norm(el)) || /GRAPHITE\s*[/·]\s*TITANIUM/.test(norm(el))));
+     for(const el of subtitles){
+       let block=el;
+       while(block.parentElement && block.parentElement!==head){
+         const parent=block.parentElement;
+         if(parent.querySelector('button,select,[role="combobox"]'))break;
+         if(parent.getBoundingClientRect().width>400)break;
+         if(parent.querySelectorAll('div,span,small,p').length>8)break;
+         block=parent;
+       }
+       hide(block);
      }
      if(!document.getElementById('liberty-master-slot')){
        const master=document.createElement('label');
@@ -599,19 +611,37 @@ header_trim = """
        toggle.addEventListener('click',()=>{keyboardOpen=!keyboardOpen;updateKeyboard();});
        head.appendChild(toggle);
      }
+     // Anchor the toggle immediately LEFT of the actual preset selector.
+     const selector=[...head.querySelectorAll('select,[role="combobox"],button')].find(e=>
+       e.id!=='liberty-keyboard-toggle' &&
+       (e.matches('select,[role="combobox"]') || /^(BASS|PAD|LEAD|KEYS|INIT|PLUCK|FX)\s*[·:]/i.test((e.textContent||'').trim())));
+     const preset=selector||[...head.querySelectorAll('button')].find(e=>norm(e).includes('PRESET BROWSER'));
+     const toggle=document.getElementById('liberty-keyboard-toggle');
+     if(toggle&&preset){
+       const rect=preset.getBoundingClientRect();
+       const width=toggle.offsetWidth||145;
+       toggle.style.left=Math.max(8,rect.left-width-12)+'px';
+       toggle.style.top=Math.max(8,rect.top+(rect.height-toggle.offsetHeight)/2)+'px';
+     }
    }
-   // Entire signal-monitor toolbar, identified by its own label.
+   // Remove the entire obsolete row, not just its text. Locate the
+   // presets-save row below it to ensure we never hide that row.
    const signal=[...document.querySelectorAll('div,span')].find(e=>
      e.children.length===0&&norm(e)==='LIBERTY · SIGNAL MONITOR');
+   const save=[...document.querySelectorAll('input')].find(e=>
+     /Nom du preset personnel/i.test(e.placeholder||''));
    if(signal){
-     let strip=signal.parentElement;
-     for(let n=0;n<4&&strip?.parentElement;n++){
-       const rect=strip.getBoundingClientRect();
-       if(rect.width>window.innerWidth*.75 && rect.height>30 && rect.height<105)break;
-       strip=strip.parentElement;
+     let row=signal;
+     for(let n=0;n<7&&row.parentElement;n++){
+       const next=row.parentElement;
+       if(next===document.body||next.contains(save))break;
+       if(next.getBoundingClientRect().width>window.innerWidth*.7){
+         row=next;
+         break;
+       }
+       row=next;
      }
-     if(strip&&strip!==document.body&&strip.getBoundingClientRect().height<105&&
-        !norm(strip).includes('NOM DU PRESET PERSONNEL'))hide(strip);
+     if(row!==document.body && !row.contains(save))hide(row);
    }
    updateKeyboard();
  }
