@@ -117,11 +117,11 @@ jobs:
           page=(root/"plugin/WebUI/index.html").read_text()
           editor=(root/"plugin/Source/PluginEditor.cpp").read_text()
           header=(root/"plugin/Source/PluginProcessor.h").read_text()
-          assert page.count('id="liberty-native-oscillators-bridge"') == 1
-          match=re.search(r'<script id="liberty-native-oscillators-bridge">(.*?)</script>',page,re.S)
-          assert match, "Missing native oscillator bridge script"
+          assert page.count('id="liberty-native-full-parameter-bridge"') == 1
+          match=re.search(r'<script id="liberty-native-full-parameter-bridge">(.*?)</script>',page,re.S)
+          assert match, "Missing native full-parameter bridge script"
           Path("/tmp/freedom-native-bridge-check.js").write_text(match.group(1))
-          assert 'freedomGetOscillators' in editor and 'freedomSetOscillator' in editor
+          assert 'freedomSetParameter' in editor and 'freedomGetParameter' in editor
           assert '.withNativeIntegrationEnabled()' in editor
           assert 'getValueTreeState()' in header
           assert 'setSize(1400, 920)' in editor
