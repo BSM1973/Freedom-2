@@ -178,35 +178,29 @@ ui_cleanup = """
       const toolbar=relocated.parentElement;
       if(toolbar) {toolbar.style.display='flex';toolbar.style.alignItems='center';toolbar.style.gap='10px';}
     }
-    // Select waveform rows by their four visible labels, regardless of whether
-    // the original UI uses <button>, <div> or <span> for its controls.
-    // The first row below each oscillator preview is the LARGE primary selector.
-    // The second is the SMALL duplicate and must be removed.
+    // Idempotent cleanup: always preserve the largest SINE/SAW/PULSE/TRI
+    // selector in each oscillator card and hide every smaller duplicate.
     const waveNames=['SINE','SAW','PULSE','TRI'];
     const allElements=[...document.querySelectorAll('*')];
-    const waveformRows=allElements.filter(parent=>{
-      if(parent.children.length!==4) return false;
-      return waveNames.every((name,index)=>
-        normalize(parent.children[index].textContent)===name);
-    }).filter(parent=>!parent.querySelector('[data-liberty-primary-wave]'));
-    // Scope to each oscillator by its exact heading, then use DOM order
-    // (not dimensions or fragile CSS classes) to distinguish the two rows.
+    const waveformRows=allElements.filter(parent=>
+      parent.children.length===4 && waveNames.every((name,index)=>
+        normalize(parent.children[index].textContent)===name));
     for(let number=1;number<=3;number++){
       const heading=allElements.find(el=>el.children.length===0 &&
         normalize(el.textContent)==='OSCILLATOR 0'+number);
-      if(!heading) continue;
+      if(!heading)continue;
       let card=heading.parentElement;
       while(card && waveformRows.filter(row=>card.contains(row)).length<2)
         card=card.parentElement;
-      if(!card) continue;
-      const matched=waveformRows.filter(row=>card.contains(row));
-      if(matched.length!==2) continue; // fail safely, never remove the primary
-      const [primary,duplicate]=matched.sort((x,y)=>
-        x.compareDocumentPosition(y)&Node.DOCUMENT_POSITION_FOLLOWING?-1:1);
+      if(!card)continue;
+      const rows=waveformRows.filter(row=>card.contains(row));
+      if(rows.length<2)continue;
+      // DOM order is stable even when hidden elements have zero dimensions.
+      const primary=rows[0];
       primary.hidden=false;
       primary.style.removeProperty('display');
       primary.dataset.libertyPrimaryWave='true';
-      hide(duplicate);
+      for(const duplicate of rows.slice(1))hide(duplicate);
     }
     // Retain the four large waveform choices. Remove only a separate WAVE
     // parameter control, never the primary SINE/SAW/PULSE/TRI selector.
@@ -341,14 +335,26 @@ ui_cleanup = """
     hideButton('WEB AUDIO EXPERIMENTAL');
     removeStrip(['ENGINE · FREEDOM 2','AUDIOWORKLET EXPERIMENTAL']);
   }
-  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded',cleanup,{once:true});
-  else cleanup();
-  window.addEventListener('load',cleanup,{once:true});
-  // React/embedded UI may paint the bottom panels after DOMContentLoaded.
-  // Bounded rechecks (no MutationObserver and no infinite render loop).
-  [150,650,1800].forEach(delay=>setTimeout(()=>{
-    try { cleanup(); } catch(error) { console.warn('Liberty UI cleanup:',error); }
-  },delay));
+  let cleaning=false;
+  function runCleanup(){
+    if(cleaning)return;
+    cleaning=true;
+    try{cleanup();}catch(error){console.warn('Liberty UI cleanup:',error);}
+    finally{cleaning=false;}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',runCleanup,{once:true});
+  else runCleanup();
+  window.addEventListener('load',runCleanup,{once:true});
+  // Reapply after asynchronous UI reconstruction, including preset loads.
+  // Only react to newly inserted DOM nodes; styling existing nodes is ignored.
+  let scheduled=false;
+  const observer=new MutationObserver(changes=>{
+    if(cleaning||scheduled||!changes.some(c=>c.type==='childList'&&c.addedNodes.length))return;
+    scheduled=true;
+    setTimeout(()=>{scheduled=false;runCleanup();},80);
+  });
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+  [150,650,1800].forEach(delay=>setTimeout(runCleanup,delay));
 
 })();
 </script>
