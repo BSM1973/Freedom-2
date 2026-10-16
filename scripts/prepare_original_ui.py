@@ -109,77 +109,16 @@ html.liberty-ui-initializing body { visibility:hidden!important; }
         if (!text.includes('OSCILLATOR 0')) hide(el);
       }
     }
-    // Relocate the existing signal monitor (including animated level LEDs) to
-    // the former version-label position, and remove its now-empty dedicated row.
-    const version=nodes().find(el=>el.children.length===0 &&
-      normalize(el.textContent).includes('FREEDOM 2 · PREMIUM UI V0.9'));
-    const signal=nodes().find(el=>el.children.length===0 &&
-      normalize(el.textContent)==='LIBERTY · SIGNAL MONITOR');
-    if(version && signal && !document.getElementById('liberty-relocated-signal')) {
-      const strip=signal.parentElement;
-      const level=strip && [...strip.querySelectorAll('div,span')].find(el=>
-        el !== signal && el.children.length >= 6 && el.children.length <= 32 &&
-        el.querySelectorAll('span,div').length >= 6 &&
-        el.getBoundingClientRect().width < 320);
-      const newTitle=document.createElement('span');
-      newTitle.id='liberty-relocated-signal';
-      newTitle.textContent='LIBERTY · SIGNAL MONITOR';
-      version.replaceWith(newTitle);
-      if(level) {
-        newTitle.style.display='inline-flex';
-        newTitle.style.alignItems='center';
-        newTitle.style.gap='12px';
-        newTitle.appendChild(level);
-      }
-      // Preserve the density control by placing it beside the relocated monitor.
-      const density=strip?.querySelector('button');
-      if(density && normalize(density.textContent).includes('DENSITÉ')) newTitle.appendChild(density);
-      if(strip && !normalize(strip.textContent).includes('OSCILLATOR')) {
-        const row=strip.parentElement;
-        if(row && row.getBoundingClientRect().height < 90 &&
-           !normalize(row.textContent).includes('NOM DU PRESET PERSONNEL')) hide(row);
-        else hide(strip);
+    // Original decorative signal monitor removed. The master volume control
+    // is installed once by liberty-compact-layout below.
+    for(const el of nodes()){
+      if(el.children.length===0 && normalize(el.textContent)==='LIBERTY · SIGNAL MONITOR'){
+        const strip=el.parentElement;
+        if(strip && !strip.querySelector('#liberty-master-volume'))hide(strip);
       }
     }
-
-
-    // The density control is not part of the new compact signal monitor.
-    for(const button of document.querySelectorAll('button,[role="button"]')) {
-      if(normalize(button.textContent).startsWith('DENSITÉ')) hide(button);
-    }
-    // Restore the *live* meter DOM from the hidden original signal strip.
-    const relocated=document.getElementById('liberty-relocated-signal');
-    if(relocated && !relocated.querySelector('[data-liberty-live-meter]')) {
-      const oldLabel=nodes().find(el=>el.children.length===0 &&
-        normalize(el.textContent)==='LIBERTY · SIGNAL MONITOR' && el!==relocated);
-      const oldRow=oldLabel?.parentElement?.parentElement;
-      if(oldRow) {
-        const candidates=[...oldRow.querySelectorAll('div,span')].filter(el=>{
-          const children=[...el.children];
-          if(children.length<8 || children.length>40) return false;
-          if(children.some(c=>c.matches('button,input,select'))) return false;
-          return children.every(c=>c.children.length<=1);
-        });
-        const meter=candidates.sort((a,b)=>{
-          const score=el=>/meter|level|led|bar|signal|vu/i.test(String(el.className))?1:0;
-          return score(b)-score(a);
-        })[0];
-        if(meter) {
-          meter.dataset.libertyLiveMeter='true';
-          meter.style.setProperty('display','inline-flex','important');
-          meter.style.alignItems='center';
-          meter.style.flexShrink='0';
-          relocated.appendChild(meter);
-        }
-      }
-      relocated.style.display='inline-flex';
-      relocated.style.alignItems='center';
-      relocated.style.gap='12px';
-      relocated.style.whiteSpace='nowrap';
-      relocated.style.flexShrink='0';
-      // Allow the parameter search and adjacent actions to shift right.
-      const toolbar=relocated.parentElement;
-      if(toolbar) {toolbar.style.display='flex';toolbar.style.alignItems='center';toolbar.style.gap='10px';}
+    for(const button of document.querySelectorAll('button,[role="button"]')){
+      if(normalize(button.textContent).startsWith('DENSITÉ'))hide(button);
     }
     // Idempotent cleanup: always preserve the largest SINE/SAW/PULSE/TRI
     // selector in each oscillator card and hide every smaller duplicate.
@@ -533,6 +472,87 @@ full_bridge = """
 })();
 </script>
 """
+compact_layout = """
+<style id="liberty-compact-layout-css">
+#liberty-master-volume{display:inline-flex;align-items:center;gap:9px;flex-shrink:0;color:#dce9f2;font:600 12px system-ui}
+#liberty-master-volume input{width:118px;accent-color:#53c4e3;cursor:pointer}
+#liberty-master-volume output{min-width:35px;text-align:right;font-variant-numeric:tabular-nums}
+#liberty-keyboard-toggle{flex-shrink:0;background:#142635;color:#dce9f2;border:1px solid #54788c;border-radius:7px;padding:9px 13px;font:600 12px system-ui;cursor:pointer}
+#liberty-keyboard-toggle[aria-expanded="true"]{border-color:#53c4e3}
+</style>
+<script id="liberty-compact-layout-js">
+(() => {
+ let keyboardOpen=false;
+ const norm=e=>(e?.textContent||'').replace(/\\s+/g,' ').trim().toUpperCase();
+ const native=()=>window.__JUCE__?.backend?.getNativeFunction?.('freedomSetParameter');
+ function toolbar(){
+   const search=[...document.querySelectorAll('input')].find(e=>/Trouver un paramètre/i.test(e.placeholder||''));
+   if(search)return search.parentElement?.parentElement;
+   const title=[...document.querySelectorAll('*')].find(e=>e.children.length===0&&norm(e)==='LIBERTY · SIGNAL MONITOR');
+   return title?.parentElement?.parentElement||null;
+ }
+ function keyboardSection(){
+   const title=[...document.querySelectorAll('div,span,h2,h3,h4')].find(e=>e.children.length===0&&norm(e).includes('GLOBAL PLAY KEYBOARD'));
+   if(!title)return null;
+   let el=title;
+   for(let i=0;i<7&&el.parentElement;i++,el=el.parentElement){
+     const count=el.querySelectorAll('[data-note],[data-midi-note],.piano-key,.keyboard-key,.white-key,.black-key').length;
+     if(count>=12&&count<=100)return el;
+   }
+   return title.parentElement;
+ }
+ function install(){
+   const bar=toolbar();
+   if(bar&&!document.getElementById('liberty-master-volume')){
+     const control=document.createElement('label');
+     control.id='liberty-master-volume';
+     control.innerHTML='MASTER <input type="range" min="0" max="100" step="1" value="80" aria-label="Volume général"><output>80 %</output>';
+     const slider=control.querySelector('input'),output=control.querySelector('output');
+     slider.addEventListener('input',()=>{
+       output.textContent=slider.value+' %';
+       const value=Number(slider.value)/100;
+       const ui=window.LibertyFreedomUI;
+       const values=ui?.getParameters?.()||{};
+       const key=['Performance_Master_Volume','Performance_Volume','Global_Master_Volume','Global_Volume','Master_Volume','Master_Gain','Master_Level'].find(k=>k in values);
+       if(key&&ui?.setParameter)ui.setParameter(key,value);
+       else {const fn=native();if(fn)Promise.resolve(fn('master',value)).catch(console.warn);}
+     });
+     bar.prepend(control);
+     // Match actual preset master when available, without triggering audio changes.
+     setInterval(()=>{
+       if(document.activeElement===slider)return;
+       const values=window.LibertyFreedomUI?.getParameters?.()||{};
+       const key=['Performance_Master_Volume','Performance_Volume','Global_Master_Volume','Global_Volume','Master_Volume','Master_Gain','Master_Level'].find(k=>k in values);
+       if(key&&Number.isFinite(Number(values[key]))){
+         const n=Math.round(Math.max(0,Math.min(1,Number(values[key])))*100);
+         slider.value=String(n);output.textContent=n+' %';
+       }
+     },500);
+   }
+   if(bar&&!document.getElementById('liberty-keyboard-toggle')){
+     const toggle=document.createElement('button');
+     toggle.id='liberty-keyboard-toggle';toggle.type='button';
+     toggle.addEventListener('click',()=>{keyboardOpen=!keyboardOpen;updateKeyboard();});
+     bar.appendChild(toggle);
+   }
+   updateKeyboard();
+ }
+ function updateKeyboard(){
+   const section=keyboardSection();
+   if(section)section.style.setProperty('display',keyboardOpen?'':'none',keyboardOpen?'':'important');
+   const toggle=document.getElementById('liberty-keyboard-toggle');
+   if(toggle){toggle.textContent=keyboardOpen?'⌃ FERMER CLAVIER':'⌄ AFFICHER CLAVIER';toggle.setAttribute('aria-expanded',String(keyboardOpen));}
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});
+ else install();
+ window.addEventListener('load',install,{once:true});
+ const observer=new MutationObserver(changes=>{
+   if(changes.some(c=>c.addedNodes.length))install();
+ });
+ observer.observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+"""
 keyboard_bridge = """
 <script id="liberty-native-keyboard">
 (() => {
@@ -576,7 +596,7 @@ keyboard_bridge = """
 """
 if "</body>" not in source_html:
     raise RuntimeError("Original HTML has no body closing tag")
-(assets/"index.html").write_text(source_html.replace("<head>","<head>"+browser_audio_guard,1).replace("</body>",ui_cleanup+bridge+native_api_shim+full_bridge+keyboard_bridge+"</body>",1))
+(assets/"index.html").write_text(source_html.replace("<head>","<head>"+browser_audio_guard,1).replace("</body>",ui_cleanup+bridge+native_api_shim+full_bridge+keyboard_bridge+compact_layout+"</body>",1))
 
 s=cmake.read_text()
 s=s.replace("JUCE_WEB_BROWSER=0", "JUCE_WEB_BROWSER=1")
