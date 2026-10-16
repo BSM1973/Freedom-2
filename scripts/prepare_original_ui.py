@@ -306,6 +306,42 @@ ui_cleanup = """
 """
 # Synchronize the rest of the native engine, including preset recalls.
 # The existing OSC and filter bridges retain their specialized mappings.
+native_api_shim = """
+<script id="liberty-juce-native-api-shim">
+(() => {
+  // JUCE injects __JUCE__.postMessage, but getNativeFunction lives in
+  // the optional frontend JS bundle. Provide the tiny supported protocol
+  // directly so an embedded local HTML file can invoke C++ native functions.
+  const juce=window.__JUCE__;
+  if(!juce || typeof juce.postMessage!=='function')return;
+  const backend=juce.backend||(juce.backend={});
+  if(typeof backend.getNativeFunction==='function')return;
+  const listeners=new Map();
+  let serial=0;
+  const previous=typeof backend.emitByBackend==='function'
+    ?backend.emitByBackend.bind(backend):null;
+  backend.emitByBackend=function(eventId,payload){
+    if(eventId==='__juce__complete'){
+      let result=payload;
+      try{if(typeof payload==='string')result=JSON.parse(payload);}catch(_){}
+      const entry=listeners.get(result?.promiseId);
+      if(entry){listeners.delete(result.promiseId);entry.resolve(result.result);}
+    }
+    if(previous)previous(eventId,payload);
+  };
+  backend.getNativeFunction=function(name){
+    return (...args)=>new Promise((resolve,reject)=>{
+      const resultId=serial++;
+      listeners.set(resultId,{resolve,reject});
+      juce.postMessage(JSON.stringify({
+        eventId:'__juce__invoke',
+        payload:{name,params:args,resultId}
+      }));
+    });
+  };
+})();
+</script>
+"""
 full_bridge = """
 <script id="liberty-native-full-parameter-bridge">
 (() => {
@@ -460,7 +496,7 @@ keyboard_bridge = """
 """
 if "</body>" not in source_html:
     raise RuntimeError("Original HTML has no body closing tag")
-(assets/"index.html").write_text(source_html.replace("</body>",ui_cleanup+bridge+full_bridge+keyboard_bridge+"</body>",1))
+(assets/"index.html").write_text(source_html.replace("</body>",ui_cleanup+bridge+native_api_shim+full_bridge+keyboard_bridge+"</body>",1))
 
 s=cmake.read_text()
 s=s.replace("JUCE_WEB_BROWSER=0", "JUCE_WEB_BROWSER=1")
