@@ -1097,6 +1097,29 @@ jobs:
             -G Xcode -DJUCE_DIR="$RUNNER_TEMP/JUCE" -DCMAKE_OSX_ARCHITECTURES=arm64
           cmake --build "$RUNNER_TEMP/juce-state-test/build" --config Release --parallel 3
           "$RUNNER_TEMP/juce-state-test/build/FreedomStateRoundtrip_artefacts/Release/FreedomStateRoundtrip"
+      - name: Inspect native processor integration test prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          root=Path(os.environ["SOURCE_ROOT"])/"plugin"
+          cmake=(root/"CMakeLists.txt").read_text()
+          header=(root/"Source/PluginProcessor.h").read_text()
+          source=(root/"Source/PluginProcessor.cpp").read_text()
+          assert re.search(r'class\s+Freedom2Processor\b',header), "Missing real processor class"
+          assert 'Freedom2Processor::getStateInformation' in source
+          assert 'Freedom2Processor::setStateInformation' in source
+          assert re.search(r'juce_add_plugin\s*\(',cmake), "Missing JUCE plugin target"
+          print("Native integration prerequisites:")
+          print("Processor class: Freedom2Processor")
+          print("Processor source: plugin/Source/PluginProcessor.cpp")
+          print("Processor header: plugin/Source/PluginProcessor.h")
+          print("JUCE plugin targets:",re.findall(r'juce_add_plugin\s*\(\s*([^\s)]+)',cmake))
+          print("Additional plugin sources:",sorted(p.name for p in (root/"Source").glob("*.cpp")))
+          print("NOTE: inspection only; no Freedom2Processor runtime test is executed here.")
+          PY
       - name: Configure ARM64
         shell: bash
         run: |
