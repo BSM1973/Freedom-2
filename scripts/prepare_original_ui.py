@@ -509,9 +509,50 @@ full_bridge = """
 })();
 </script>
 """
+keyboard_bridge = """
+<script id="liberty-native-keyboard">
+(() => {
+  const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const getSend=()=>window.__JUCE__?.backend?.getNativeFunction?.('freedomKeyboardNote');
+  const active=new Map();
+  function locate(){
+    const all=[...document.querySelectorAll('h1,h2,h3,h4,div,span,p')];
+    const title=all.find(e=>e.children.length===0&&e.textContent.trim().toUpperCase().includes('GLOBAL PLAY KEYBOARD'));
+    if(!title)return null;
+    let root=title.parentElement;
+    for(let i=0;i<5&&root;i++,root=root.parentElement){
+      const keys=[...root.querySelectorAll('[data-note],[data-midi-note],.piano-key,.keyboard-key,.white-key,.black-key')];
+      if(keys.length>=12&&keys.length<=100)return keys;
+    }
+    return null;
+  }
+  function noteOf(el,index){
+    const raw=el.getAttribute('data-midi-note')||el.getAttribute('data-note');
+    if(raw!==null&&/^\\d+$/.test(raw))return Number(raw);
+    const match=String(raw||el.getAttribute('aria-label')||'').match(/([A-G])(#|b)?\\s*(-?\\d+)/i);
+    if(match){const name=match[1].toUpperCase()+(match[2]||'');const offset=notes.indexOf(name);if(offset>=0)return (Number(match[3])+1)*12+offset;}
+    return 48+index;
+  }
+  function setup(){
+    const keys=locate();if(!keys)return;
+    keys.forEach((el,index)=>{
+      if(el.dataset.libertyNativeKey==='1')return;
+      el.dataset.libertyNativeKey='1';
+      const note=noteOf(el,index);if(note<0||note>127)return;
+      const send=(on)=>{const fn=getSend();if(fn)Promise.resolve(fn(note,100,on)).catch(console.warn);};
+      el.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();active.set(e.pointerId,note);send(true);el.setPointerCapture?.(e.pointerId);});
+      const off=e=>{if(active.get(e.pointerId)!==note)return;active.delete(e.pointerId);send(false);};
+      el.addEventListener('pointerup',off);el.addEventListener('pointercancel',off);
+      el.addEventListener('lostpointercapture',off);
+    });
+  }
+  setInterval(setup,500);
+})();
+</script>
+"""
 if "</body>" not in source_html:
     raise RuntimeError("Original HTML has no body closing tag")
-(assets/"index.html").write_text(source_html.replace("</body>",ui_cleanup+bridge+full_bridge+"</body>",1))
+(assets/"index.html").write_text(source_html.replace("</body>",ui_cleanup+bridge+full_bridge+keyboard_bridge+"</body>",1))
 
 s=cmake.read_text()
 s=s.replace("JUCE_WEB_BROWSER=0", "JUCE_WEB_BROWSER=1")
