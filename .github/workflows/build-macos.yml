@@ -808,6 +808,15 @@ jobs:
               "Host state save must serialize APVTS"
           assert re.search(r'setStateInformation\s*\([^)]*\)\s*\{[^}]*apvts\.replaceState\(',processor,re.S), \
               "Host state load must restore APVTS"
+          # Verify the real processor guards malformed host chunks before replacing state.
+          save=re.search(r'void\s+Freedom2Processor::getStateInformation\s*\([^)]*\)\s*\{(.*?)\}',processor,re.S)
+          load=re.search(r'void\s+Freedom2Processor::setStateInformation\s*\([^)]*\)\s*\{(.*?)\}',processor,re.S)
+          assert save and load,"Freedom2Processor host-state methods missing"
+          assert 'copyXmlToBinary' in save.group(1),"Processor must use JUCE host binary XML format"
+          assert 'getXmlFromBinary' in load.group(1),"Processor must decode JUCE host binary XML"
+          assert re.search(r'if\s*\(\s*xml\s*&&\s*xml->hasTagName',load.group(1)), \
+              "Processor must reject invalid XML or an unexpected APVTS root tag"
+          assert 'juce::ValueTree::fromXml' in load.group(1),"Processor must restore XML into a ValueTree"
           print("AU/VST3 state contract: 5 filter ADSR parameters registered, DSP/UI mapped, APVTS host save/restore present")
           print("Static contract check only; actual DAW preset roundtrip remains to be tested")
           PY
