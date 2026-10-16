@@ -1203,7 +1203,7 @@ jobs:
           target_link_libraries(freedom_processor_state_test PRIVATE
               {target}_SharedCode juce::juce_audio_utils juce::juce_audio_processors)
           target_include_directories(freedom_processor_state_test PRIVATE
-              "$<TARGET_PROPERTY:${target}_SharedCode,JUCE_GENERATED_SOURCES_DIRECTORY>")
+              "$<TARGET_PROPERTY:{target}_SharedCode,JUCE_GENERATED_SOURCES_DIRECTORY>")
           target_compile_features(freedom_processor_state_test PRIVATE cxx_std_17)
           """
           cmake.write_text(content)
